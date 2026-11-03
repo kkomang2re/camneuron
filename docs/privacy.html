@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캠뉴런 개인정보처리방침</title>
+<!-- 플레이 콘솔의 "개인정보처리방침 URL"에 이 페이지 주소(https://kkomang2re.github.io/camneuron/privacy.html)를 넣는다. -->
+<style>
+  :root { --bg: #14151a; --panel: #1c1e24; --line: #2c2f38; --text: #f2f2f4; --muted: #a7aab4; --accent: #ffd54f; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.7 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    word-break: keep-all;
+  }
+  a { color: var(--accent); }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 1.8rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 32px 0 8px; }
+  p, li { color: #d8d9de; }
+  .date { color: var(--muted); margin: 0 0 24px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>캠뉴런 개인정보처리방침</h1>
+  <p class="date">시행일: 2026년 11월 4일</p>
+
+  <p>캠뉴런(이하 "앱")은 휴대폰 카메라와 마이크로 찍은 영상과 소리를 같은 네트워크에 있는 사용자의 PC(OBS Studio용 캠뉴런 플러그인)로 보내는 앱입니다.
+  이 방침은 앱이 어떤 정보를 다루고 어디로 보내는지 설명합니다.</p>
+
+  <h2>1. 개발자가 수집하는 정보</h2>
+  <p><b>없습니다.</b> 앱에는 개발자가 운영하는 서버가 없고, 개발자는 사용자의 영상·소리·사진·연락처·위치·기기 식별 정보 등 어떤 개인정보도 받거나 저장하지 않습니다.
+  앱에는 광고나 사용 통계(분석) 도구가 들어 있지 않습니다.</p>
+
+  <h2>2. 앱이 쓰는 권한과 이유</h2>
+  <div class="table-scroll">
+    <table>
+      <tr><th>권한</th><th>쓰는 이유</th></tr>
+      <tr><td>카메라</td><td>영상을 찍어 사용자의 PC로 보냅니다.</td></tr>
+      <tr><td>마이크</td><td>사용자가 켰을 때만 소리를 녹음해 사용자의 PC로 보냅니다.</td></tr>
+      <tr><td>알림</td><td>송출 중인지, 새 PC가 연결을 요청하는지 알려 줍니다.</td></tr>
+      <tr><td>네트워크, Wi-Fi 상태</td><td>PC와 연결하고, 같은 Wi-Fi의 PC가 폰을 찾을 수 있게 하며, 폰의 주소를 화면에 보여 줍니다.</td></tr>
+      <tr><td>백그라운드 실행</td><td>화면을 끄거나 다른 앱으로 나가도 송출이 이어지게 합니다 (포그라운드 서비스).</td></tr>
+      <tr><td>Google Play 결제</td><td>캠뉴런 프로를 사고, 산 내역을 확인합니다.</td></tr>
+    </table>
+  </div>
+
+  <h2>3. 영상과 소리는 어디로 가나요</h2>
+  <ul>
+    <li>영상과 소리는 <b>사용자가 승인한 PC로만</b> Wi-Fi 또는 USB로 직접 전송됩니다. 인터넷의 다른 서버를 거치지 않습니다.</li>
+    <li>처음 연결하는 PC는 폰 화면에 뜬 6자리 코드를 입력해야 연결되며, 사용자는 폰 설정에서 언제든 승인을 취소할 수 있습니다.</li>
+    <li>같은 네트워크 안에서 전송되는 영상·소리는 암호화되지 않습니다. 공용 Wi-Fi보다는 집이나 개인 네트워크에서 사용하시길 권합니다.</li>
+    <li>PC로 보낸 영상과 소리를 녹화하거나 방송하는 것은 사용자의 PC와 OBS Studio에서 이루어지며, 앱은 이를 따로 저장하지 않습니다.</li>
+  </ul>
+
+  <h2>4. 폰에만 저장되는 정보</h2>
+  <p>다음 정보는 사용자의 폰 안(앱 전용 저장소)에만 저장되고 밖으로 보내지 않습니다. 앱을 지우면 함께 지워지며, 기기 백업에도 포함하지 않습니다.</p>
+  <ul>
+    <li>송출 설정(해상도, 화질, 자동 끄기 등)</li>
+    <li>연결을 허용한 PC의 이름과 연결용 토큰</li>
+    <li>사용자가 입력한 채팅·후원 위젯 주소와 창 위치</li>
+  </ul>
+
+  <h2>5. 채팅·후원 위젯 (선택 기능)</h2>
+  <p>사용자가 치지직 등 방송 플랫폼의 위젯 주소를 입력하면, 앱은 그 주소의 웹 페이지를 앱 화면에 띄웁니다.
+  이때 폰은 해당 플랫폼의 서버에 직접 접속하며, 그 과정에서의 정보 처리는 해당 플랫폼의 개인정보처리방침을 따릅니다. 이 기능을 쓰지 않으면 접속하지 않습니다.</p>
+
+  <h2>6. 결제</h2>
+  <p>캠뉴런 프로 구매는 Google Play 결제로 처리됩니다. 결제 수단 등 결제 정보는 Google이 처리하며 개발자에게 전달되지 않습니다.
+  앱은 구매 여부를 확인하기 위해 Google Play에 구매 내역을 조회합니다. 이때 쓰는 Google Play 결제 라이브러리는 결제 처리와 오류 진단을 위해
+  Google에 정보를 보낼 수 있으며, 이는 <a href="https://policies.google.com/privacy">Google 개인정보처리방침</a>을 따릅니다.</p>
+
+  <h2>7. 아동</h2>
+  <p>이 앱은 만 14세 미만 아동을 대상으로 하지 않으며, 아동의 정보를 따로 수집하지 않습니다.</p>
+
+  <h2>8. 방침의 변경</h2>
+  <p>이 방침이 바뀌면 이 페이지에 바뀐 내용과 시행일을 알립니다.</p>
+
+  <h2>9. 문의</h2>
+  <p>개인정보와 관련한 문의: <a href="mailto:kkomang38851@gmail.com">kkomang38851@gmail.com</a><br>개발자: 캠뉴런</p>
+
+  <p><a href="index.html">← 캠뉴런 홈</a></p>
+</main>
+</body>
+</html>

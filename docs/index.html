@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캠뉴런 — 폰 카메라를 OBS 웹캠으로</title>
+<meta name="description" content="안드로이드 폰 카메라를 Wi-Fi로 OBS Studio에 바로 연결하는 방송용 웹캠 앱과 무료 PC 플러그인.">
+<!--
+  배포할 때 바꿀 곳 (README "배포 페이지"):
+  - 폰 앱 버튼: 플레이스토어 주소 (앱이 공개되기 전에는 열리지 않음)
+  - PC 플러그인 버튼: GitHub 릴리스(태그 plugin-v<버전>)에 올린 obs-plugin\dist\ 의 파일. 버전을 올리면 아래 주소 두 개도 바꾼다
+  - 소스 저장소: https://github.com/kkomang2re/camneuron (PC 플러그인은 GPL이라 공개)
+-->
+<style>
+  :root {
+    --bg: #14151a;
+    --panel: #1c1e24;
+    --line: #2c2f38;
+    --text: #f2f2f4;
+    --muted: #a7aab4;
+    --accent: #ffd54f;
+    --live: #ff5252;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    word-break: keep-all;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 56px 0 40px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  header svg { width: 96px; height: 96px; border-radius: 22px; flex: none; }
+  h1 { font-size: 2.1rem; margin: 0 0 4px; line-height: 1.25; }
+  .lead { color: var(--muted); margin: 0; font-size: 1.05rem; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 48px; }
+  .btn {
+    display: inline-flex; flex-direction: column; justify-content: center;
+    min-width: 230px; padding: 14px 20px; border-radius: 12px; text-decoration: none;
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #17181c; }
+  .btn b { font-size: 1.05rem; }
+  .btn small { opacity: .75; }
+  section { margin: 0 0 48px; }
+  h2 { font-size: 1.35rem; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.02rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  ol.steps { margin: 0; padding-left: 1.3em; }
+  ol.steps li { margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 12px; overflow: hidden; }
+  th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .pro { color: var(--accent); font-weight: 600; }
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin: 0 0 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p, details ul { color: var(--muted); margin: 10px 0 0; }
+  code { background: #0d0e11; padding: 2px 6px; border-radius: 6px; font-size: .9em; }
+  footer { border-top: 1px solid var(--line); padding: 24px 0 48px; color: var(--muted); font-size: .9rem; }
+  footer p { margin: 0 0 6px; }
+  .table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <!-- 앱 아이콘 (android-app/.../ic_launcher_foreground.xml과 같은 모양) -->
+    <svg viewBox="18 18 72 72" role="img" aria-label="캠뉴런 아이콘">
+      <rect x="18" y="18" width="72" height="72" fill="#1C1E24"/>
+      <path fill="#fff" d="M33,39 H61 A7,7 0 0 1 68,46 V62 A7,7 0 0 1 61,69 H33 A7,7 0 0 1 26,62 V46 A7,7 0 0 1 33,39 Z"/>
+      <path fill="#fff" d="M70,49 L82,42 V66 L70,59 Z"/>
+      <circle cx="47" cy="54" r="11" fill="#1C1E24"/>
+      <circle cx="47" cy="54" r="5.5" fill="#FFD54F"/>
+      <circle cx="74" cy="35" r="5" fill="#FF5252"/>
+    </svg>
+    <div>
+      <h1>캠뉴런</h1>
+      <p class="lead">안드로이드 폰의 좋은 카메라를 Wi-Fi로 OBS Studio에 바로. 방송용 고화질 웹캠이 됩니다.</p>
+    </div>
+  </header>
+
+  <div class="buttons">
+    <a class="btn primary" href="https://play.google.com/store/apps/details?id=com.camneuron.app"><b>폰 앱 받기</b><small>Google Play · 무료</small></a>
+    <a class="btn" href="https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.0/CamNeuron-PC-Plugin-0.2.0-Setup.exe"><b>PC 플러그인 설치 프로그램</b><small>OBS Studio용 · Windows · 버전 0.2.0 · 무료</small></a>
+    <a class="btn" href="https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.0/CamNeuron-PC-Plugin-0.2.0-windows-x64.zip"><b>zip으로 직접 설치</b><small>설치 프로그램이 안 될 때</small></a>
+  </div>
+
+  <section>
+    <h2>시작하기</h2>
+    <ol class="steps">
+      <li><b>PC</b>에 OBS Studio를 설치하고, 위의 <b>PC 플러그인 설치 프로그램</b>을 실행합니다. OBS가 켜져 있으면 닫을지 묻습니다.</li>
+      <li><b>폰</b>에서 캠뉴런 앱을 열고 카메라 권한을 허용합니다. 폰과 PC는 같은 공유기에 연결돼 있어야 합니다.</li>
+      <li>OBS에서 소스 추가(+) → <b>캠뉴런 (Android 폰 카메라)</b>. 주소 칸을 비워 두면 같은 Wi-Fi의 폰을 자동으로 찾습니다.</li>
+      <li>처음 한 번만, 폰 화면에 뜬 <b>6자리 코드</b>를 OBS 속성의 <b>연결 코드</b> 칸에 입력합니다. 다음부터는 바로 연결됩니다.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>이런 점이 좋아요</h2>
+    <div class="grid">
+      <div class="card"><h3>선 없이 Wi-Fi로</h3><p>폰을 자동으로 찾아 연결하고, 공유기가 IP를 바꿔도 다시 이어 붙습니다. USB(adb) 연결도 됩니다.</p></div>
+      <div class="card"><h3>짧은 지연</h3><p>폰의 하드웨어 인코더로 압축해 보내 촬영부터 OBS 화면까지 약 0.1초입니다.</p></div>
+      <div class="card"><h3>폰 마이크</h3><p>폰 마이크 소리를 영상과 립싱크를 맞춰 함께 보냅니다.</p></div>
+      <div class="card"><h3>채팅·후원 창</h3><p>치지직 위젯 주소를 넣으면 카메라를 보면서 폰 화면으로 채팅과 후원을 확인합니다.</p></div>
+      <div class="card"><h3>양쪽에서 조절</h3><p>줌, 초점, 노출, 화이트밸런스, 플래시를 폰과 OBS 어디서 바꿔도 맞춰집니다.</p></div>
+      <div class="card"><h3>안전한 연결</h3><p>처음 연결하는 PC는 폰의 코드를 입력해야 해서, 같은 Wi-Fi의 다른 사람이 카메라를 볼 수 없습니다.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>무료와 프로</h2>
+    <div class="table-scroll">
+      <table>
+        <tr><th></th><th>무료</th><th class="pro">프로 (한 번 구매)</th></tr>
+        <tr><td>화질</td><td>720p · 30fps · H.264</td><td>1080p · 1440p · 4K · 60fps · HEVC</td></tr>
+        <tr><td>채팅·후원 창</td><td>폰에서 보기</td><td>방송 화면에 합성</td></tr>
+        <tr><td>마이크 · 자동 찾기 · 연결 승인 · 발열 대응</td><td>O</td><td>O</td></tr>
+      </table>
+    </div>
+    <p>프로는 폰 앱 설정 맨 위의 <b>캠뉴런 프로</b>에서 Google Play로 구매합니다. PC 플러그인은 늘 무료입니다.</p>
+  </section>
+
+  <section>
+    <h2>연결이 안 될 때</h2>
+    <details>
+      <summary>OBS에서 폰을 못 찾아요</summary>
+      <ul>
+        <li>폰과 PC가 <b>같은 공유기</b>에 연결돼 있는지 확인하세요. 게스트 Wi-Fi나 'AP 격리'가 켜진 공유기는 기기끼리 막혀 있습니다.</li>
+        <li>폰에서 캠뉴런 앱이 열려 있어야 합니다. 앱 왼쪽 위의 주소(예: <code>192.168.0.12:9610</code>)를 OBS 주소 칸에 직접 넣어도 됩니다.</li>
+        <li>따로 설치한 보안 프로그램(백신의 방화벽 등)이 OBS의 네트워크 연결을 막고 있지 않은지 확인하세요.</li>
+      </ul>
+    </details>
+    <details>
+      <summary>설치 프로그램이 "OBS 버전이 맞지 않는다"고 해요</summary>
+      <p>플러그인 0.2.0은 OBS Studio 33에 맞춰 만들었습니다. OBS가 이보다 오래됐다면 OBS를 업데이트하고, 더 새롭다면 이 페이지에서 새 플러그인이 나왔는지 확인하세요.</p>
+    </details>
+    <details>
+      <summary>"Windows의 PC 보호" 창이 떠요</summary>
+      <p>아직 코드 서명 인증서가 없는 설치 프로그램이라 Windows가 경고합니다. <b>추가 정보 → 실행</b>을 누르면 설치됩니다. 걱정되면 zip으로 직접 설치할 수 있습니다.</p>
+    </details>
+    <details>
+      <summary>플러그인을 지우고 싶어요</summary>
+      <p>Windows 설정 → 앱 → 설치된 앱에서 "캠뉴런 PC 플러그인"을 제거합니다. zip으로 설치했다면 <code>C:\ProgramData\obs-studio\plugins\obs-phonecam</code> 폴더를 지우세요.</p>
+    </details>
+  </section>
+
+  <footer>
+    <p><a href="privacy.html">개인정보처리방침</a> · PC 플러그인 소스 코드: <a href="https://github.com/kkomang2re/camneuron">저장소</a> (GNU GPL 2.0 이상)</p>
+    <p>OBS Studio는 OBS Project의, 치지직은 NAVER Corp.의 상표이며 캠뉴런은 이들과 관련이 없습니다.</p>
+  </footer>
+</div>
+</body>
+</html>

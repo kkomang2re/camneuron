@@ -1,0 +1,5 @@
+obs-plugin/.deps/
+obs-plugin/build/
+obs-plugin/dist/
+*.h264
+*.class

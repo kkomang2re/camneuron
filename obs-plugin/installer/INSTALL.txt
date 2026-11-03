@@ -1,0 +1,16 @@
+﻿캠뉴런 PC 플러그인 - 직접 설치하기 (zip)
+
+설치 프로그램(CamNeuron-PC-Plugin-...-Setup.exe)을 쓰면 이 과정이 필요 없습니다.
+
+1. OBS Studio를 끕니다.
+2. 이 zip 안의 "obs-phonecam" 폴더를 통째로 아래 폴더에 복사합니다 (없으면 만드세요).
+      C:\ProgramData\obs-studio\plugins\
+   복사한 뒤에는 C:\ProgramData\obs-studio\plugins\obs-phonecam\obs-phonecam.dll 이 있어야 합니다.
+   (ProgramData는 숨김 폴더라 탐색기 주소창에 직접 입력하세요.)
+3. OBS를 켜고 소스 추가(+) → "캠뉴런 (Android 폰 카메라)"를 고릅니다.
+4. 폰에서 캠뉴런 앱을 열면 같은 Wi-Fi에서 자동으로 찾습니다. 처음 한 번은 폰 화면의 6자리 코드를
+   OBS 속성의 "연결 코드" 칸에 입력하세요.
+
+지우기: C:\ProgramData\obs-studio\plugins\obs-phonecam 폴더를 지우면 됩니다.
+
+이 플러그인은 GNU GPL 2.0 이상으로 배포합니다 (obs-phonecam\LICENSE.txt). 소스 코드는 다운로드 페이지에 있습니다.
