@@ -6,6 +6,7 @@
 - 다운로드와 사용법: https://kkomang2re.github.io/camneuron/
 - 개인정보처리방침: https://kkomang2re.github.io/camneuron/privacy.html
 - 설치 파일: [Releases](https://github.com/kkomang2re/camneuron/releases)
+- 테스터 체험판 앱 (Google Play 출시 전, APK): https://kkomang2re.github.io/camneuron/beta.html
 
 The PC plugin that turns an Android phone running the CamNeuron app into an OBS Studio source (Wi-Fi or USB).
 
@@ -18,7 +19,7 @@ The PC plugin that turns an Android phone running the CamNeuron app into an OBS 
 | `tools/fake-phone/` | 폰 없이 플러그인을 시험하는 가짜 폰과 폰 점검 도구 (Java 11 이상) |
 | `docs/` | 다운로드 페이지와 개인정보처리방침 (GitHub Pages) |
 
-폰 앱은 네트워크로만 통신하는 별개 프로그램이라 소스가 이 저장소에 없습니다.
+폰 앱은 네트워크로만 통신하는 별개 프로그램이라 소스가 이 저장소에 없습니다 (Releases의 체험판 APK는 실행 파일만 배포).
 
 ## 빌드 (Windows, Visual Studio 2022 Build Tools, CMake 3.24 이상)
 

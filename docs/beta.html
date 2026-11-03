@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캠뉴런 체험판 — 테스터용 앱</title>
+<meta name="description" content="Google Play 출시 전에 먼저 써 보는 캠뉴런 테스터용 앱. 2027년 1월 31일까지 프로 기능을 모두 쓸 수 있습니다.">
+<!--
+  새 체험판을 올릴 때 바꿀 곳 (README "테스터 체험판"):
+  - APK 버튼과 SHA-256: GitHub 릴리스(태그 app-v<버전>, 시험판 표시)에 올린 android-app\dist\ 의 파일
+  - 기한: app/build.gradle.kts의 trialLastDay와 같은 날짜
+-->
+<style>
+  :root {
+    --bg: #14151a;
+    --panel: #1c1e24;
+    --line: #2c2f38;
+    --text: #f2f2f4;
+    --muted: #a7aab4;
+    --accent: #ffd54f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    word-break: keep-all;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 56px 0 40px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  header svg { width: 96px; height: 96px; border-radius: 22px; flex: none; }
+  h1 { font-size: 2.1rem; margin: 0 0 4px; line-height: 1.25; }
+  .lead { color: var(--muted); margin: 0; font-size: 1.05rem; }
+  .tag { display: inline-block; margin: 0 0 8px; padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #17181c; font-size: .85rem; font-weight: 700; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 48px; }
+  .btn {
+    display: inline-flex; flex-direction: column; justify-content: center;
+    min-width: 230px; padding: 14px 20px; border-radius: 12px; text-decoration: none;
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #17181c; }
+  .btn b { font-size: 1.05rem; }
+  .btn small { opacity: .75; }
+  section { margin: 0 0 48px; }
+  h2 { font-size: 1.35rem; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.02rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  ol.steps { margin: 0; padding-left: 1.3em; }
+  ol.steps li { margin: 0 0 10px; }
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin: 0 0 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p, details ul { color: var(--muted); margin: 10px 0 0; }
+  code { background: #0d0e11; padding: 2px 6px; border-radius: 6px; font-size: .9em; overflow-wrap: anywhere; }
+  footer { border-top: 1px solid var(--line); padding: 24px 0 48px; color: var(--muted); font-size: .9rem; }
+  footer p { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <!-- 앱 아이콘 (index.html과 같은 모양) -->
+    <svg viewBox="18 18 72 72" role="img" aria-label="캠뉴런 아이콘">
+      <rect x="18" y="18" width="72" height="72" fill="#1C1E24"/>
+      <path fill="#fff" d="M33,39 H61 A7,7 0 0 1 68,46 V62 A7,7 0 0 1 61,69 H33 A7,7 0 0 1 26,62 V46 A7,7 0 0 1 33,39 Z"/>
+      <path fill="#fff" d="M70,49 L82,42 V66 L70,59 Z"/>
+      <circle cx="47" cy="54" r="11" fill="#1C1E24"/>
+      <circle cx="47" cy="54" r="5.5" fill="#FFD54F"/>
+      <circle cx="74" cy="35" r="5" fill="#FF5252"/>
+    </svg>
+    <div>
+      <span class="tag">테스터용</span>
+      <h1>캠뉴런 체험판</h1>
+      <p class="lead">Google Play 출시 전에 먼저 써 보는 앱입니다. <b>2027년 1월 31일까지</b> 프로 기능을 모두 무료로 쓸 수 있습니다.</p>
+    </div>
+  </header>
+
+  <div class="buttons">
+    <a class="btn primary" href="https://github.com/kkomang2re/camneuron/releases/download/app-v0.2.0-beta/CamNeuron-0.2.0-beta.apk"><b>체험판 앱 받기 (APK)</b><small>Android 8.0 이상 · 버전 0.2.0-beta · 0.5MB</small></a>
+    <a class="btn" href="https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.0/CamNeuron-PC-Plugin-0.2.0-Setup.exe"><b>PC 플러그인 설치 프로그램</b><small>OBS Studio용 · Windows · 버전 0.2.0</small></a>
+  </div>
+
+  <section>
+    <h2>설치하기</h2>
+    <ol class="steps">
+      <li><b>폰</b>에서 이 페이지를 열고 <b>체험판 앱 받기</b>를 누릅니다. "파일이 유해할 수 있다"는 안내가 나오면 <b>다운로드</b>를 고르세요.</li>
+      <li>받은 파일을 엽니다. 처음이면 "출처를 알 수 없는 앱" 설정이 열리니, 지금 쓰는 브라우저(Chrome, 삼성 인터넷 등)에 <b>이 출처 허용</b>을 켜고 돌아와 <b>설치</b>를 누릅니다.</li>
+      <li>Play 프로텍트가 "확인되지 않은 앱"이라고 경고하면 <b>세부정보</b>를 펼쳐 <b>그래도 설치</b>를 고릅니다 (휴대폰마다 문구가 조금 다릅니다). Play 스토어를 거치지 않은 앱이라 뜨는 경고입니다.</li>
+      <li>홈 화면에 생긴 <b>캠뉴런 체험판</b>을 열고 카메라 권한을 허용합니다.</li>
+      <li><b>PC</b>에는 위의 <b>PC 플러그인 설치 프로그램</b>을 설치하고, 연결은 <a href="index.html#start">시작하기</a>의 순서대로 합니다 (처음 한 번 폰에 뜬 6자리 코드를 OBS에 입력).</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>체험판에 대해</h2>
+    <div class="grid">
+      <div class="card"><h3>2027년 1월 31일까지 프로</h3><p>1080p · 1440p · 4K, 60fps, HEVC, 채팅·후원 창 방송 합성을 모두 씁니다. 기한이 지나도 앱은 계속 되고, 무료 버전처럼 720p 30fps로 보냅니다.</p></div>
+      <div class="card"><h3>정식판과 따로 설치</h3><p>"캠뉴런 체험판"이라는 별도 앱이라 나중에 Google Play의 정식판과 함께 깔려도 서로 부딪치지 않습니다. 정식판으로 옮기면 체험판은 지워도 됩니다.</p></div>
+      <div class="card"><h3>결제 없음</h3><p>체험판에는 구매 기능이 없고 돈이 드는 일도 없습니다. 프로 구매는 정식판에서 Google Play로 합니다.</p></div>
+      <div class="card"><h3>업데이트</h3><p>새 체험판이 나오면 이 페이지에서 받아 그대로 설치하세요. 지우지 않아도 되고, 연결을 허용한 PC도 그대로 기억합니다.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>의견 보내기</h2>
+    <p>잘 안 되는 점이나 바라는 점을 알려 주시면 정식판에 반영합니다.
+      <a href="https://github.com/kkomang2re/camneuron/issues">GitHub 이슈</a>에 남기거나
+      <a href="mailto:kkomang38851@gmail.com?subject=%EC%BA%A0%EB%89%B4%EB%9F%B0%20%EC%B2%B4%ED%97%98%ED%8C%90%20%EC%9D%98%EA%B2%AC">kkomang38851@gmail.com</a>으로 메일을 보내 주세요.</p>
+    <p>문제를 알려 주실 때는 <b>폰 기종과 Android 버전</b>, <b>OBS 버전</b>, 연결 방식(Wi-Fi/USB), 화질 설정, 어떤 상황에서 생기는지를 적어 주시면 빨리 찾을 수 있습니다.</p>
+  </section>
+
+  <section>
+    <h2>자주 묻는 것</h2>
+    <details>
+      <summary>안전한 파일인지 확인하고 싶어요</summary>
+      <p>파일은 캠뉴런의 공식 <a href="https://github.com/kkomang2re/camneuron/releases">GitHub 릴리스</a>에서만 받으세요. 받은 파일의 SHA-256 값이 아래와 같으면 올린 그대로입니다.</p>
+      <p><code>18dfd57383ec19c055eb354ac4247fc05b9c3afe644db3c9c8445b22e47ecce8</code></p>
+    </details>
+    <details>
+      <summary>체험판이 어떤 정보를 모으나요?</summary>
+      <p>정식판과 같습니다. 영상과 소리는 내가 승인한 PC로만 Wi-Fi나 USB로 바로 가고, 캠뉴런 서버로 보내는 정보는 없습니다. 자세한 내용은 <a href="privacy.html">개인정보처리방침</a>을 보세요.</p>
+    </details>
+    <details>
+      <summary>기한이 지나면 어떻게 되나요?</summary>
+      <p>설정의 <b>캠뉴런 프로</b> 칸에 "체험 기간 끝남"이 나오고, 720p 30fps H.264로 보냅니다. 마이크, 자동 찾기, 연결 승인, 채팅 '나만 보기'는 그대로 씁니다. 프로 기능을 계속 쓰려면 Google Play의 정식판에서 프로를 구매해 주세요.</p>
+    </details>
+  </section>
+
+  <footer>
+    <p><a href="index.html">캠뉴런 홈</a> · <a href="privacy.html">개인정보처리방침</a> · <a href="https://github.com/kkomang2re/camneuron">저장소</a></p>
+    <p>OBS Studio는 OBS Project의, 치지직은 NAVER Corp.의 상표이며 캠뉴런은 이들과 관련이 없습니다.</p>
+  </footer>
+</div>
+</body>
+</html>
