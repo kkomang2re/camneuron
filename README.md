@@ -1,12 +1,20 @@
 # 캠뉴런 PC 플러그인 (CamNeuron PC Plugin)
 
 안드로이드 폰 카메라를 OBS Studio의 소스로 쓰게 해 주는 **캠뉴런**의 PC 쪽 플러그인입니다.
-폰에는 Google Play에서 받는 캠뉴런 앱을 설치합니다.
+폰에는 캠뉴런 앱을 설치합니다 (Google Play 출시 전에는 아래 체험판 APK).
+
+## 바로 받기
+
+| | 파일 | |
+|---|---|---|
+| **폰 앱 체험판** (Android 8.0 이상, 2027-01-31까지 프로) | [CamNeuron-0.2.2-beta.apk](https://github.com/kkomang2re/camneuron/releases/download/app-v0.2.2-beta/CamNeuron-0.2.2-beta.apk) | [설치 방법](https://kkomang2re.github.io/camneuron/beta.html) |
+| **PC 플러그인** (Windows, OBS Studio 33) | [CamNeuron-PC-Plugin-0.2.2-Setup.exe](https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.2/CamNeuron-PC-Plugin-0.2.2-Setup.exe) | [zip](https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.2/CamNeuron-PC-Plugin-0.2.2-windows-x64.zip) |
+
+폰에서 APK를 받아 설치할 때 "출처를 알 수 없는 앱"과 Play 프로텍트 안내가 나오면 [설치 방법](https://kkomang2re.github.io/camneuron/beta.html)을 보세요.
 
 - 다운로드와 사용법: https://kkomang2re.github.io/camneuron/
 - 개인정보처리방침: https://kkomang2re.github.io/camneuron/privacy.html
-- 설치 파일: [Releases](https://github.com/kkomang2re/camneuron/releases)
-- 테스터 체험판 앱 (Google Play 출시 전, APK): https://kkomang2re.github.io/camneuron/beta.html
+- 모든 버전: [Releases](https://github.com/kkomang2re/camneuron/releases) (체험판은 "Pre-release"로 표시)
 
 The PC plugin that turns an Android phone running the CamNeuron app into an OBS Studio source (Wi-Fi or USB).
 
