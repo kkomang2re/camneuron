@@ -25,7 +25,10 @@ extern struct obs_output_info pcam_monitor_output_info;
  * [track]은 보낼 OBS 오디오 트랙 1~6, 0이면 소리 없이. [fn]은 인코더 스레드에서 불리므로 기다리지 말아야 한다.
  * 실패하면 NULL을 돌려주고 [error]에 이유를 적는다.
  */
-struct pcam_monitor *pcam_monitor_start(int track, pcam_monitor_packet_fn fn, void *param,
+struct pcam_monitor *pcam_monitor_start(int track, int kbps, pcam_monitor_packet_fn fn, void *param,
 					struct pcam_monitor_info *info, char *error, size_t error_size);
 
 void pcam_monitor_stop(struct pcam_monitor *m);
+
+/* Wi-Fi가 약할 때 폰이 낮춰 달라고 하면 끊지 않고 비트레이트만 바꾼다. */
+void pcam_monitor_set_bitrate(struct pcam_monitor *m, int kbps);

@@ -44,6 +44,7 @@
 #define S_PHONE_SCENE "phone_scene"
 #define S_MONITOR_TRACK "monitor_track"
 #define S_MONITOR_REMOVE_MICS "monitor_remove_mics"
+#define S_LOST_SCENE "lost_scene"
 
 /* 소스의 필터 목록에 보이는 이름. 0.2.0까지는 LEGACY 이름이었으므로 그 이름의 필터를 찾으면 새 이름으로 바꾼다. */
 #define OVERLAY_FILTER_NAME "CamNeuron chat/alert overlay"
@@ -60,6 +61,7 @@
 #define PING_INTERVAL_NS 2000000000ULL
 #define VIEW_INTERVAL_NS 1000000000ULL
 #define OBS_STATE_INTERVAL_NS 1000000000ULL
+#define LOST_AFTER_NS 3000000000ULL
 #define STATS_INTERVAL_NS 1000000000ULL
 #define MAX_LATENCY_US 5000000LL
 /* 소리를 낼 시각이 지금보다 이만큼 넘게 지났으면 버린다 (OBS가 모든 소리의 버퍼를 늘리지 않게). */
@@ -113,8 +115,12 @@ struct phonecam_source {
 	bool sock_ready; /* 승인을 마쳐 다른 스레드도 제어 메시지를 보내도 됨 (승인 메시지와 섞이지 않게) */
 	struct pcam_writer *writer;   /* 승인 뒤 폰으로 보내는 것은 모두 이 스레드가 보낸다 */
 	struct pcam_monitor *monitor; /* 폰이 켠 방송 모니터 (protocol 9.3) */
+	bool monitor_audio;           /* 모니터를 소리와 함께 켰는지 */
 	char phone_scene_setting[256]; /* 속성의 "폰 장면" (비면 자동) */
 	int monitor_track;             /* 모니터로 보낼 오디오 트랙 1~6 */
+	char lost_scene_setting[256];  /* 속성의 "연결이 끊기면 바꿀 장면" (비면 바꾸지 않음) */
+	uint64_t last_video_ns;        /* 폰 영상 패킷을 마지막으로 받은 때 (0 = 아직) */
+	bool lost_switched;            /* 영상이 끊겨 바꿀 장면으로 바꾼 상태 */
 	enum auth_status auth;
 	int auth_attempts_left;
 	int auth_retry_s;
@@ -133,6 +139,7 @@ struct phonecam_source {
 	uint32_t stream_fps;
 	uint32_t stream_codec; /* 폰이 state로 알려 온 실제 코덱. 바뀌면 디코더를 바꾼다. */
 	int heat_level;        /* 0 = 정상, 1~3 = 폰이 뜨거워 요청보다 낮게 보내는 단계 */
+	int net_level;         /* 0 = 정상, 1~4 = 폰 Wi-Fi가 약해 낮춰 보내는 단계 */
 	bool free_limited;     /* 폰 앱이 무료 버전이라 요청보다 낮게(720p 30fps) 보내는 중 */
 	double send_mbps;      /* 폰이 실제로 쓰는 비트레이트 */
 	double latency_ms;
@@ -180,6 +187,7 @@ struct phonecam_source {
 	struct pcam_remote_mode remote_mode;
 	volatile bool phone_mode;
 	char remove_mics_result[128]; /* 속성의 "트랙에서 마이크 빼기" 결과 */
+	char lost_return_scene[256];  /* 연결이 끊겨 장면을 바꾸기 전 장면 (UI 스레드) */
 	bool clock_valid;
 	int64_t clock_offset_us;
 	int64_t best_rtt_us;
@@ -389,6 +397,7 @@ static void phonecam_update(void *data, obs_data_t *settings)
 		 obs_data_get_string(settings, S_PHONE_SCENE));
 	int track = (int)obs_data_get_int(settings, S_MONITOR_TRACK);
 	ctx->monitor_track = track >= 1 && track <= 6 ? track : 6;
+	snprintf(ctx->lost_scene_setting, sizeof(ctx->lost_scene_setting), "%s", obs_data_get_string(settings, S_LOST_SCENE));
 	snprintf(ctx->device_id, sizeof(ctx->device_id), "%s", obs_data_get_string(settings, S_DEVICE_ID));
 	if (reconnect) {
 		settings_free(&ctx->settings);
@@ -728,6 +737,7 @@ static void handle_state(struct phonecam_source *ctx, obs_data_t *msg)
 	if (!fps)
 		fps = state.fps;
 	int heat_level = (int)obs_data_get_int(msg, "heat_level");
+	int net_level = (int)obs_data_get_int(msg, "net_level");
 	bool free_limited = obs_data_get_bool(msg, "free_limit");
 	double send_mbps = obs_data_has_user_value(msg, "send_bitrate") ? obs_data_get_int(msg, "send_bitrate") / 1e6
 									 : state.bitrate_mbps;
@@ -736,6 +746,7 @@ static void handle_state(struct phonecam_source *ctx, obs_data_t *msg)
 	bool first = !ctx->have_phone_state;
 	bool resized = ctx->stream_width != width || ctx->stream_height != height;
 	int previous_heat = ctx->heat_level;
+	int previous_net = ctx->net_level;
 	bool was_free_limited = ctx->free_limited;
 	ctx->phone = state;
 	ctx->have_phone_state = true;
@@ -744,6 +755,7 @@ static void handle_state(struct phonecam_source *ctx, obs_data_t *msg)
 	ctx->stream_fps = fps;
 	ctx->stream_codec = state.codec;
 	ctx->heat_level = heat_level;
+	ctx->net_level = net_level;
 	ctx->free_limited = free_limited;
 	ctx->send_mbps = send_mbps;
 	/*
@@ -766,6 +778,9 @@ static void handle_state(struct phonecam_source *ctx, obs_data_t *msg)
 			blog(LOG_INFO, "[phonecam] phone cooled down: back to %ux%u @ %u fps, %.1f Mbps", width, height, fps,
 			     send_mbps);
 	}
+	if (net_level != previous_net)
+		blog(LOG_INFO, "[phonecam] phone Wi-Fi level %d: sending %ux%u @ %u fps, %.1f Mbps", net_level, width,
+		     height, fps, send_mbps);
 
 	queue_settings_sync(ctx);
 	/* 해상도가 바뀌면 합성 위치(픽셀)도 다시 계산한다. */
@@ -810,6 +825,17 @@ static void handle_monitor(struct phonecam_source *ctx, obs_data_t *msg)
 {
 	bool video = obs_data_get_bool(msg, "video");
 	bool audio = obs_data_get_bool(msg, "audio");
+	int kbps = (int)obs_data_get_int(msg, "kbps");
+
+	/* 이미 같은 설정으로 켜져 있으면 Wi-Fi 단계에 맞춰 비트레이트만 바꾼다 (끊지 않고).
+	 * 모니터를 켜고 끄는 것은 이 수신 스레드에서만 하므로 잠금 밖에서 써도 된다. */
+	pthread_mutex_lock(&ctx->mutex);
+	struct pcam_monitor *running = video && audio == ctx->monitor_audio ? ctx->monitor : NULL;
+	pthread_mutex_unlock(&ctx->mutex);
+	if (running) {
+		pcam_monitor_set_bitrate(running, kbps);
+		return;
+	}
 
 	pthread_mutex_lock(&ctx->mutex);
 	struct pcam_monitor *old = ctx->monitor;
@@ -824,7 +850,8 @@ static void handle_monitor(struct phonecam_source *ctx, obs_data_t *msg)
 	char error[128] = {0};
 	struct pcam_monitor *monitor = NULL;
 	if (video) {
-		monitor = pcam_monitor_start(audio ? track : 0, monitor_packet_to_phone, ctx, &info, error, sizeof(error));
+		monitor = pcam_monitor_start(audio ? track : 0, kbps, monitor_packet_to_phone, ctx, &info, error,
+					     sizeof(error));
 		if (!monitor)
 			blog(LOG_WARNING, "[phonecam] monitor: %s", error);
 	}
@@ -843,6 +870,7 @@ static void handle_monitor(struct phonecam_source *ctx, obs_data_t *msg)
 	pthread_mutex_lock(&ctx->mutex);
 	if (ctx->sock_ready && monitor) {
 		ctx->monitor = monitor;
+		ctx->monitor_audio = audio;
 		monitor = NULL;
 	}
 	send_control_locked(ctx, reply);
@@ -1288,6 +1316,7 @@ static void reset_session_state(struct phonecam_source *ctx)
 	ctx->have_overlays = false;
 	ctx->stream_codec = 0;
 	ctx->heat_level = 0;
+	ctx->net_level = 0;
 	ctx->free_limited = false;
 	ctx->send_mbps = 0.0;
 	ctx->audio_desc[0] = 0;
@@ -1539,6 +1568,9 @@ static void receive_stream(struct phonecam_source *ctx, pcam_socket_t sock, cons
 			break;
 
 		if (header.stream_id == PCAM_STREAM_VIDEO) {
+			pthread_mutex_lock(&ctx->mutex);
+			ctx->last_video_ns = os_gettime_ns();
+			pthread_mutex_unlock(&ctx->mutex);
 			pcam_decoder_decode(decoder, ctx->buffer, header.size, header.pts_us,
 					    (header.flags & PCAM_FLAG_CONFIG) != 0, output_frame, ctx);
 			if (!ctx->hw_decoding && pcam_decoder_is_hw(decoder)) {
@@ -1790,6 +1822,7 @@ static void phonecam_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, S_BEAUTY_BRIGHT, 0);
 	obs_data_set_default_string(settings, S_PHONE_SCENE, "");
 	obs_data_set_default_int(settings, S_MONITOR_TRACK, 6);
+	obs_data_set_default_string(settings, S_LOST_SCENE, "");
 
 	obs_data_set_default_string(settings, S_CHAT_URL, "");
 	obs_data_set_default_string(settings, S_ALERT_URL, "");
@@ -1944,6 +1977,10 @@ static void add_status(struct phonecam_source *ctx, obs_properties_t *props)
 		}
 		if (ctx->heat_level > 0) {
 			dstr_catf(&text, T_("Status.Heat"), ctx->heat_level, ctx->send_mbps);
+			dstr_cat(&text, "\n");
+		}
+		if (ctx->net_level > 0) {
+			dstr_catf(&text, T_("Status.Net"), ctx->net_level, ctx->send_mbps);
 			dstr_cat(&text, "\n");
 		}
 		if (ctx->latency_ms >= 0)
@@ -2108,6 +2145,60 @@ static obs_properties_t *audio_group(void)
 	return props;
 }
 
+struct lost_task {
+	obs_weak_source_t *weak;
+	bool enter;
+};
+
+static void lost_scene_task(void *param)
+{
+	struct lost_task *task = param;
+	obs_source_t *source = obs_weak_source_get_source(task->weak);
+	if (source) {
+		struct phonecam_source *ctx = obs_obj_get_data(source);
+		char lost[sizeof(ctx->lost_scene_setting)];
+		pthread_mutex_lock(&ctx->mutex);
+		snprintf(lost, sizeof(lost), "%s", ctx->lost_scene_setting);
+		pthread_mutex_unlock(&ctx->mutex);
+		if (task->enter)
+			pcam_remote_enter_lost(lost, ctx->lost_return_scene, sizeof(ctx->lost_return_scene));
+		else
+			pcam_remote_leave_lost(lost, ctx->lost_return_scene);
+		obs_source_release(source);
+	}
+	obs_weak_source_release(task->weak);
+	bfree(task);
+}
+
+/*
+ * 폰으로 전환해 방송하는 중 폰 영상이 [LOST_AFTER_NS] 넘게 오지 않으면(Wi-Fi가 끊김) 정해 둔 장면으로 바꾸고,
+ * 다시 오면 되돌린다. 시청자가 멈춘 화면을 보지 않게. 카메라 전환처럼 잠깐 멈추는 것은 넘긴다.
+ */
+static void phonecam_tick(void *data, float seconds)
+{
+	UNUSED_PARAMETER(seconds);
+	struct phonecam_source *ctx = data;
+	bool phone_mode = os_atomic_load_bool(&ctx->phone_mode);
+	uint64_t now = os_gettime_ns();
+	int action = 0; /* 1 바꾸기, 2 되돌리기 */
+	pthread_mutex_lock(&ctx->mutex);
+	bool stalled = ctx->last_video_ns && now - ctx->last_video_ns > LOST_AFTER_NS;
+	if (!ctx->lost_switched && stalled && phone_mode && ctx->lost_scene_setting[0]) {
+		ctx->lost_switched = true;
+		action = 1;
+	} else if (ctx->lost_switched && !stalled) {
+		ctx->lost_switched = false;
+		action = 2;
+	}
+	pthread_mutex_unlock(&ctx->mutex);
+	if (!action)
+		return;
+	struct lost_task *task = bzalloc(sizeof(*task));
+	task->weak = obs_source_get_weak_source(ctx->source);
+	task->enter = action == 1;
+	obs_queue_task(OBS_TASK_UI, lost_scene_task, task, false);
+}
+
 static bool remove_mics_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
 	UNUSED_PARAMETER(props);
@@ -2143,6 +2234,15 @@ static obs_properties_t *remote_group(struct phonecam_source *ctx)
 		obs_property_list_add_int(p, label, track);
 	}
 	obs_properties_add_button2(props, S_MONITOR_REMOVE_MICS, T_("Remote.RemoveMics"), remove_mics_clicked, ctx);
+
+	p = obs_properties_add_list(props, S_LOST_SCENE, T_("Remote.LostScene"), OBS_COMBO_TYPE_LIST,
+				    OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p, T_("Remote.LostScene.None"), "");
+	names = obs_frontend_get_scene_names();
+	for (char **name = names; name && *name; name++)
+		obs_property_list_add_string(p, *name, *name);
+	bfree(names);
+	obs_property_set_long_description(p, T_("Remote.LostScene.Help"));
 	if (ctx->remove_mics_result[0])
 		obs_properties_add_text(props, "remote_result", ctx->remove_mics_result, OBS_TEXT_INFO);
 	return props;
@@ -2179,6 +2279,7 @@ struct obs_source_info phonecam_source_info = {
 	.type = OBS_SOURCE_TYPE_INPUT,
 	.output_flags = OBS_SOURCE_ASYNC_VIDEO | OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE,
 	.icon_type = OBS_ICON_TYPE_CAMERA,
+	.video_tick = phonecam_tick,
 	.get_name = phonecam_get_name,
 	.create = phonecam_create,
 	.destroy = phonecam_destroy,

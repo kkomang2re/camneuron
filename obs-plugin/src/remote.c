@@ -464,6 +464,37 @@ void pcam_remote_execute(obs_source_t *self, struct pcam_remote_mode *mode, cons
 	refresh_now(); /* 결과를 바로 폰에 알리려고 */
 }
 
+void pcam_remote_enter_lost(const char *lost_scene, char *return_scene, size_t size)
+{
+	obs_source_t *current = obs_frontend_get_current_scene();
+	const char *name = current ? obs_source_get_name(current) : "";
+	if (strcmp(name, lost_scene) != 0) {
+		snprintf(return_scene, size, "%s", name);
+		set_scene(lost_scene);
+		blog(LOG_WARNING, "[phonecam] remote: lost the phone, switched '%s' -> '%s'", name, lost_scene);
+	} else {
+		return_scene[0] = 0;
+	}
+	obs_source_release(current);
+	refresh_now();
+}
+
+void pcam_remote_leave_lost(const char *lost_scene, char *return_scene)
+{
+	if (!return_scene[0])
+		return;
+	obs_source_t *current = obs_frontend_get_current_scene();
+	if (current && strcmp(obs_source_get_name(current), lost_scene) == 0) {
+		set_scene(return_scene);
+		blog(LOG_INFO, "[phonecam] remote: the phone is back, switched to '%s'", return_scene);
+	} else {
+		blog(LOG_INFO, "[phonecam] remote: the phone is back; the scene was changed meanwhile, keeping it");
+	}
+	obs_source_release(current);
+	return_scene[0] = 0;
+	refresh_now();
+}
+
 /* ------------------------------------------------------------------------- */
 /* 모니터 오디오 트랙 */
 

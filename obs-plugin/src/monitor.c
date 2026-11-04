@@ -122,10 +122,10 @@ struct obs_output_info pcam_monitor_output_info = {
 };
 
 /* 지연이 짧은 설정. 키 이름은 각 인코더 플러그인(OBS 33)의 설정 이름. */
-static obs_encoder_t *create_video_encoder(const char *id, uint32_t width, uint32_t height, uint32_t divisor)
+static obs_encoder_t *create_video_encoder(const char *id, int kbps, uint32_t width, uint32_t height, uint32_t divisor)
 {
 	obs_data_t *s = obs_data_create();
-	obs_data_set_int(s, "bitrate", MONITOR_VIDEO_KBPS);
+	obs_data_set_int(s, "bitrate", kbps > 0 ? kbps : MONITOR_VIDEO_KBPS);
 	obs_data_set_int(s, "keyint_sec", 1);
 	obs_data_set_int(s, "bf", 0);
 	obs_data_set_string(s, "profile", "main");
@@ -168,11 +168,11 @@ static void release_monitor(struct pcam_monitor *m)
 }
 
 /* 하나의 인코더로 출력을 만들어 시작한다. 실패하면 모두 정리하고 NULL. */
-static struct pcam_monitor *try_start(const char *encoder_id, int track, pcam_monitor_packet_fn fn, void *param,
+static struct pcam_monitor *try_start(const char *encoder_id, int track, int kbps, pcam_monitor_packet_fn fn, void *param,
 				      uint32_t width, uint32_t height, uint32_t divisor)
 {
 	struct pcam_monitor *m = bzalloc(sizeof(*m));
-	m->video = create_video_encoder(encoder_id, width, height, divisor);
+	m->video = create_video_encoder(encoder_id, kbps, width, height, divisor);
 	if (!m->video) {
 		bfree(m);
 		return NULL;
@@ -208,7 +208,7 @@ static struct pcam_monitor *try_start(const char *encoder_id, int track, pcam_mo
 	return m;
 }
 
-struct pcam_monitor *pcam_monitor_start(int track, pcam_monitor_packet_fn fn, void *param,
+struct pcam_monitor *pcam_monitor_start(int track, int kbps, pcam_monitor_packet_fn fn, void *param,
 					struct pcam_monitor_info *info, char *error, size_t error_size)
 {
 	struct obs_video_info ovi;
@@ -225,7 +225,7 @@ struct pcam_monitor *pcam_monitor_start(int track, pcam_monitor_packet_fn fn, vo
 	/* 그래픽카드 인코더를 먼저 써서 PC 부담을 줄이고, 없거나 실패하면 x264 */
 	static const char *const encoders[] = {"obs_nvenc_h264_tex", "h264_texture_amf", "obs_x264"};
 	for (size_t i = 0; i < sizeof(encoders) / sizeof(encoders[0]); i++) {
-		struct pcam_monitor *m = try_start(encoders[i], track, fn, param, width, height, divisor);
+		struct pcam_monitor *m = try_start(encoders[i], track, kbps, fn, param, width, height, divisor);
 		if (!m)
 			continue;
 		info->width = width;
@@ -247,4 +247,17 @@ void pcam_monitor_stop(struct pcam_monitor *m)
 		return;
 	release_monitor(m);
 	blog(LOG_INFO, "[phonecam] monitor stopped");
+}
+
+void pcam_monitor_set_bitrate(struct pcam_monitor *m, int kbps)
+{
+	if (!m || kbps <= 0)
+		return;
+	obs_data_t *settings = obs_encoder_get_settings(m->video);
+	if (obs_data_get_int(settings, "bitrate") != kbps) {
+		obs_data_set_int(settings, "bitrate", kbps);
+		obs_encoder_update(m->video, settings); /* 실행 중에도 비트레이트만 바꾼다 (NVENC·AMF·x264) */
+		blog(LOG_INFO, "[phonecam] monitor bitrate %d kbps", kbps);
+	}
+	obs_data_release(settings);
 }

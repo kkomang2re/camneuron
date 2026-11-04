@@ -38,6 +38,15 @@ void pcam_remote_execute(obs_source_t *self, struct pcam_remote_mode *mode, cons
 /* 폰 장면: 설정 값이 있으면 그것, 없으면 이 소스가 가장 크게 보이는 장면. UI 스레드에서 부른다. bfree로 해제. */
 char *pcam_remote_phone_scene(obs_source_t *self, const char *phone_scene_setting);
 
+/*
+ * 폰 연결이 끊기면(영상이 멈추면) 지금 장면을 [return_scene]에 기억하고 [lost_scene]으로 바꾼다. 이미 그 장면이면 기억하지 않는다.
+ * UI 스레드에서 부른다.
+ */
+void pcam_remote_enter_lost(const char *lost_scene, char *return_scene, size_t size);
+
+/* 다시 이어지면 그사이 사용자가 다른 장면으로 바꾸지 않았을 때만 [return_scene]으로 되돌린다. UI 스레드에서 부른다. */
+void pcam_remote_leave_lost(const char *lost_scene, char *return_scene);
+
 /* 마이크(전역 마이크/보조 장치, 장면 안의 오디오 입력 캡처, 캠뉴런 소스)가 [track](1~6)에 들어 있는지 */
 bool pcam_remote_mics_on_track(int track);
 
