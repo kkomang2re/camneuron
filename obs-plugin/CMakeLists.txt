@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(obs-phonecam VERSION 0.2.1 LANGUAGES C RC)
+project(obs-phonecam VERSION 0.2.2 LANGUAGES C RC)
 
 if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "지금은 Windows x64만 지원합니다.")

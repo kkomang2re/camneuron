@@ -1592,6 +1592,8 @@ static void phonecam_defaults(obs_data_t *settings)
 	obs_data_set_default_double(settings, S_EV, 0.0);
 	obs_data_set_default_string(settings, S_WB, "auto");
 	obs_data_set_default_bool(settings, S_MIC, true);
+	obs_data_set_default_int(settings, S_BEAUTY_SMOOTH, 0);
+	obs_data_set_default_int(settings, S_BEAUTY_BRIGHT, 0);
 
 	obs_data_set_default_string(settings, S_CHAT_URL, "");
 	obs_data_set_default_string(settings, S_ALERT_URL, "");
@@ -1891,6 +1893,17 @@ static obs_properties_t *overlay_group(void)
 	return props;
 }
 
+static obs_properties_t *beauty_group(void)
+{
+	obs_properties_t *props = obs_properties_create();
+	obs_property_t *p = obs_properties_add_int_slider(props, S_BEAUTY_SMOOTH, T_("Beauty.Smooth"), 0, 100, 1);
+	obs_property_int_set_suffix(p, " %");
+	p = obs_properties_add_int_slider(props, S_BEAUTY_BRIGHT, T_("Beauty.Bright"), 0, 100, 1);
+	obs_property_int_set_suffix(p, " %");
+	obs_properties_add_text(props, "beauty_help", T_("Beauty.Help"), OBS_TEXT_INFO);
+	return props;
+}
+
 static obs_properties_t *audio_group(void)
 {
 	obs_properties_t *props = obs_properties_create();
@@ -1915,6 +1928,7 @@ static obs_properties_t *phonecam_properties(void *data)
 		obs_properties_add_text(props, S_PAIR_CODE, T_("PairCode"), OBS_TEXT_DEFAULT);
 	obs_properties_add_button2(props, S_RECONNECT, T_("Reconnect"), reconnect_clicked, ctx);
 	obs_properties_add_group(props, "group_camera", T_("Group.Camera"), OBS_GROUP_NORMAL, camera_group(ctx, &caps));
+	obs_properties_add_group(props, "group_beauty", T_("Group.Beauty"), OBS_GROUP_NORMAL, beauty_group());
 	obs_properties_add_group(props, "group_quality", T_("Group.Quality"), OBS_GROUP_NORMAL, quality_group(ctx));
 	obs_properties_add_group(props, "group_audio", T_("Group.Audio"), OBS_GROUP_NORMAL, audio_group());
 	obs_properties_add_group(props, "group_overlay", T_("Group.Overlay"), OBS_GROUP_NORMAL, overlay_group());

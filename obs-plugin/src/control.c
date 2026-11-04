@@ -43,6 +43,8 @@ void pcam_controls_from_settings(struct pcam_controls *c, obs_data_t *settings)
 	c->stabilization = obs_data_get_bool(settings, S_STABILIZATION);
 	c->mic = obs_data_get_bool(settings, S_MIC);
 	c->bitrate_mbps = (int)obs_data_get_int(settings, S_BITRATE);
+	c->beauty_smooth = (int)obs_data_get_int(settings, S_BEAUTY_SMOOTH);
+	c->beauty_bright = (int)obs_data_get_int(settings, S_BEAUTY_BRIGHT);
 }
 
 void pcam_controls_to_settings(const struct pcam_controls *c, obs_data_t *settings)
@@ -65,6 +67,25 @@ void pcam_controls_to_settings(const struct pcam_controls *c, obs_data_t *settin
 	obs_data_set_bool(settings, S_STABILIZATION, c->stabilization);
 	obs_data_set_bool(settings, S_MIC, c->mic);
 	obs_data_set_int(settings, S_BITRATE, c->bitrate_mbps);
+	if (c->beauty_smooth >= 0)
+		obs_data_set_int(settings, S_BEAUTY_SMOOTH, c->beauty_smooth);
+	if (c->beauty_bright >= 0)
+		obs_data_set_int(settings, S_BEAUTY_BRIGHT, c->beauty_bright);
+}
+
+/* 폰 state에 있는 0~100 값, 없으면 -1 */
+static int beauty_from_state(obs_data_t *state, const char *key)
+{
+	if (!obs_data_has_user_value(state, key))
+		return -1;
+	long long value = obs_data_get_int(state, key);
+	return value < 0 ? 0 : value > 100 ? 100 : (int)value;
+}
+
+/* 한쪽이 모르면(-1) 같은 것으로 본다 */
+static bool beauty_equal(int a, int b)
+{
+	return a < 0 || b < 0 || a == b;
 }
 
 void pcam_controls_from_state(struct pcam_controls *c, obs_data_t *state)
@@ -86,6 +107,8 @@ void pcam_controls_from_state(struct pcam_controls *c, obs_data_t *state)
 	c->stabilization = obs_data_get_bool(state, "stabilization");
 	c->mic = obs_data_get_bool(state, "mic");
 	c->bitrate_mbps = (int)((obs_data_get_int(state, "bitrate") + 500000) / 1000000);
+	c->beauty_smooth = beauty_from_state(state, "beauty_smooth");
+	c->beauty_bright = beauty_from_state(state, "beauty_bright");
 }
 
 bool pcam_controls_equal(const struct pcam_controls *a, const struct pcam_controls *b)
@@ -95,7 +118,8 @@ bool pcam_controls_equal(const struct pcam_controls *a, const struct pcam_contro
 	       a->focus_mode == b->focus_mode &&
 	       near_equal(a->focus_distance, b->focus_distance) && near_equal(a->ev, b->ev) &&
 	       a->ae_lock == b->ae_lock && a->awb_lock == b->awb_lock && a->wb == b->wb && a->torch == b->torch &&
-	       a->stabilization == b->stabilization && a->mic == b->mic && a->bitrate_mbps == b->bitrate_mbps;
+	       a->stabilization == b->stabilization && a->mic == b->mic && a->bitrate_mbps == b->bitrate_mbps &&
+	       beauty_equal(a->beauty_smooth, b->beauty_smooth) && beauty_equal(a->beauty_bright, b->beauty_bright);
 }
 
 bool pcam_controls_diff(const struct pcam_controls *from, const struct pcam_controls *to, obs_data_t *msg,
@@ -169,6 +193,15 @@ bool pcam_controls_diff(const struct pcam_controls *from, const struct pcam_cont
 	}
 	if (from->mic != to->mic) {
 		obs_data_set_bool(msg, "mic", to->mic);
+		any = true;
+	}
+	/* 예전 폰 앱(state에 없음)에는 보내지 않는다 */
+	if (from->beauty_smooth >= 0 && to->beauty_smooth >= 0 && from->beauty_smooth != to->beauty_smooth) {
+		obs_data_set_int(msg, "beauty_smooth", to->beauty_smooth);
+		any = true;
+	}
+	if (from->beauty_bright >= 0 && to->beauty_bright >= 0 && from->beauty_bright != to->beauty_bright) {
+		obs_data_set_int(msg, "beauty_bright", to->beauty_bright);
 		any = true;
 	}
 	return any;

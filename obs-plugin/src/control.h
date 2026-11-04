@@ -19,6 +19,8 @@
 #define S_TORCH "torch"
 #define S_STABILIZATION "stabilization"
 #define S_MIC "mic"
+#define S_BEAUTY_SMOOTH "beauty_smooth"
+#define S_BEAUTY_BRIGHT "beauty_bright"
 
 #define PCAM_WB_COUNT 5
 
@@ -47,6 +49,9 @@ struct pcam_controls {
 	bool torch;
 	bool stabilization;
 	bool mic; /* 폰 마이크 소리를 보냄 */
+	/* 뷰티 보정 0~100 (프로). 폰 state에 없으면(예전 앱) -1: 그때는 OBS 값을 건드리지 않고 보내지도 않는다 */
+	int beauty_smooth;
+	int beauty_bright;
 };
 
 /* 지금 폰에서 열린 카메라가 지원하는 범위 */

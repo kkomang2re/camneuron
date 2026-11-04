@@ -145,6 +145,8 @@ PC는 소리와 영상을 같은 시계의 타임스탬프로 OBS에 넘기므�
 | `codec` | `"h264"` / `"h265"`. 바꾸면 위와 같이 인코더를 새로 만든다 |
 | `rate_control` | `"cbr"` / `"vbr"`. 바꾸면 위와 같이 인코더를 새로 만든다 |
 | `mic` | 폰 마이크 소리를 보냄. 폰에 마이크 권한이 없으면 켜도 `state`에 `false`로 돌아온다 |
+| `beauty_smooth` | 뷰티 보정 – 피부 보정 0~100 (0 = 끔). 폰 GPU가 보내기 전에 적용. 무료 버전은 `state`에 0으로 돌아온다. 앱 0.2.2부터 (없으면 PC는 건드리지 않음) |
+| `beauty_bright` | 뷰티 보정 – 밝게 0~100. 나머지는 `beauty_smooth`와 같음 |
 
 채팅·후원 창은 `set`에 `chat_url`, `alert_url`, `chat_stream`, `alert_stream`을 넣어 바꿀 수 있습니다 (OBS 속성 창에서 넣은 URL). 위치·크기는 폰에서만 정합니다. 접속 직후에는 폰에 저장된 값을 우선하고, 폰에 URL이 비어 있을 때만 PC가 자기 URL을 보냅니다.
 무료 버전 폰은 `chat_stream`·`alert_stream`을 켜지 않고, 켜는 `set`을 받으면 꺼진 값의 `overlays`를 다시 보내 PC 설정도 되돌립니다 (송출 합성은 프로 기능).
