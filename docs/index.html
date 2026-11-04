@@ -7,7 +7,8 @@
 <meta name="description" content="안드로이드 폰 카메라를 Wi-Fi로 OBS Studio에 바로 연결하는 방송용 웹캠 앱과 무료 PC 플러그인.">
 <!--
   배포할 때 바꿀 곳 (README "배포 페이지"):
-  - 폰 앱 버튼: 플레이스토어 주소 (앱이 공개되기 전에는 열리지 않음)
+  - 폰 앱 버튼: 지금은 GitHub의 체험판 APK (beta.html과 같은 주소). Play에 공개되면
+    https://play.google.com/store/apps/details?id=com.camneuron.app 로 바꾸고 "Google Play · 무료"로 되돌린다
   - PC 플러그인 버튼: GitHub 릴리스(태그 plugin-v<버전>)에 올린 obs-plugin\dist\ 의 파일. 버전을 올리면 아래 주소 두 개도 바꾼다
   - 소스 저장소: https://github.com/kkomang2re/camneuron (PC 플러그인은 GPL이라 공개)
 -->
@@ -85,17 +86,17 @@
   </header>
 
   <div class="buttons">
-    <a class="btn primary" href="https://play.google.com/store/apps/details?id=com.camneuron.app"><b>폰 앱 받기</b><small>Google Play · 무료</small></a>
+    <a class="btn primary" href="https://github.com/kkomang2re/camneuron/releases/download/app-v0.2.0-beta/CamNeuron-0.2.0-beta.apk"><b>폰 앱 받기 (체험판 APK)</b><small>Android 8.0 이상 · 2027-01-31까지 프로 · 무료</small></a>
     <a class="btn" href="https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.0/CamNeuron-PC-Plugin-0.2.0-Setup.exe"><b>PC 플러그인 설치 프로그램</b><small>OBS Studio용 · Windows · 버전 0.2.0 · 무료</small></a>
     <a class="btn" href="https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.0/CamNeuron-PC-Plugin-0.2.0-windows-x64.zip"><b>zip으로 직접 설치</b><small>설치 프로그램이 안 될 때</small></a>
-    <a class="btn" href="beta.html"><b>테스터 체험판</b><small>Play 출시 전에 먼저 써 보기 · 2027-01-31까지 프로</small></a>
+    <a class="btn" href="beta.html"><b>체험판 설치 방법</b><small>Google Play 출시 전 · APK 설치 안내</small></a>
   </div>
 
   <section id="start">
     <h2>시작하기</h2>
     <ol class="steps">
       <li><b>PC</b>에 OBS Studio를 설치하고, 위의 <b>PC 플러그인 설치 프로그램</b>을 실행합니다. OBS가 켜져 있으면 닫을지 묻습니다.</li>
-      <li><b>폰</b>에서 캠뉴런 앱을 열고 카메라 권한을 허용합니다. 폰과 PC는 같은 공유기에 연결돼 있어야 합니다.</li>
+      <li><b>폰</b>에 위의 <b>폰 앱 받기</b>로 앱을 설치하고(<a href="beta.html">설치 방법</a>) 카메라 권한을 허용합니다. 폰과 PC는 같은 공유기에 연결돼 있어야 합니다.</li>
       <li>OBS에서 소스 추가(+) → <b>캠뉴런 (Android 폰 카메라)</b>. 주소 칸을 비워 두면 같은 Wi-Fi의 폰을 자동으로 찾습니다.</li>
       <li>처음 한 번만, 폰 화면에 뜬 <b>6자리 코드</b>를 OBS 속성의 <b>연결 코드</b> 칸에 입력합니다. 다음부터는 바로 연결됩니다.</li>
     </ol>
@@ -123,7 +124,7 @@
         <tr><td>마이크 · 자동 찾기 · 연결 승인 · 발열 대응</td><td>O</td><td>O</td></tr>
       </table>
     </div>
-    <p>프로는 폰 앱 설정 맨 위의 <b>캠뉴런 프로</b>에서 Google Play로 구매합니다. PC 플러그인은 늘 무료입니다.</p>
+    <p>지금 받는 체험판은 <b>2027년 1월 31일까지 프로 기능이 모두 켜져</b> 있습니다. Google Play 정식판이 나오면 앱 설정 맨 위의 <b>캠뉴런 프로</b>에서 구매합니다. PC 플러그인은 늘 무료입니다.</p>
   </section>
 
   <section>
