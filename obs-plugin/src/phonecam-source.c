@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include <obs-module.h>
+#include <util/darray.h>
 #include <util/dstr.h>
 #include <util/platform.h>
 #include <util/threading.h>
@@ -50,6 +51,7 @@
 #define AUTH_RETRY_DELAY_MS 2000
 #define MAX_AUTH_MESSAGE_BYTES (64 * 1024)
 #define PING_INTERVAL_NS 2000000000ULL
+#define VIEW_INTERVAL_NS 1000000000ULL
 #define STATS_INTERVAL_NS 1000000000ULL
 #define MAX_LATENCY_US 5000000LL
 /* 소리를 낼 시각이 지금보다 이만큼 넘게 지났으면 버린다 (OBS가 모든 소리의 버퍼를 늘리지 않게). */
@@ -154,6 +156,8 @@ struct phonecam_source {
 	uint64_t last_ping_ns;
 	uint64_t ping_sent_us;
 	long long ping_id;
+	uint64_t last_view_ns;
+	int sent_flip; /* 폰에 알린 장면 뒤집기 (1 좌우, 2 상하). -1이면 아직 안 알림 */
 	bool clock_valid;
 	int64_t clock_offset_us;
 	int64_t best_rtt_us;
@@ -801,6 +805,91 @@ static void maybe_send_ping(struct phonecam_source *ctx)
 	obs_data_release(msg);
 }
 
+struct flip_search {
+	obs_source_t *source;
+	int scene_score;
+	int best_score;
+	bool flip_h;
+	bool flip_v;
+};
+
+static bool collect_scene(void *param, obs_source_t *scene)
+{
+	DARRAY(obs_source_t *) *scenes = param;
+	obs_source_t *ref = obs_source_get_ref(scene);
+	if (ref)
+		da_push_back(*scenes, &ref);
+	return true;
+}
+
+static bool check_item(obs_scene_t *scene, obs_sceneitem_t *item, void *param)
+{
+	UNUSED_PARAMETER(scene);
+	struct flip_search *search = param;
+	if (obs_sceneitem_get_source(item) != search->source)
+		return true;
+	int score = search->scene_score + (obs_sceneitem_visible(item) ? 1 : 0);
+	if (score <= search->best_score)
+		return true;
+	struct vec2 scale;
+	obs_sceneitem_get_scale(item, &scale);
+	bool upside_down = fabsf(fmodf(fabsf(obs_sceneitem_get_rot(item)), 360.0f) - 180.0f) < 45.0f;
+	search->best_score = score;
+	search->flip_h = (scale.x < 0.0f) != upside_down;
+	search->flip_v = (scale.y < 0.0f) != upside_down;
+	return true;
+}
+
+/*
+ * 이 소스를 OBS 장면에서 좌우·상하로 뒤집어 쓰는지 (변환 → 뒤집기, 180도 회전 포함).
+ * 여러 장면에 있으면 방송 중인 장면 > 미리보기 장면 > 보이는 항목 순으로 고른다. 그룹 자체의 뒤집기는 보지 않는다.
+ * 장면 목록 잠금을 잡은 채 장면 항목을 보지 않도록 장면을 먼저 모은다.
+ */
+static void find_scene_flip(obs_source_t *source, bool *flip_h, bool *flip_v)
+{
+	DARRAY(obs_source_t *) scenes;
+	da_init(scenes);
+	obs_enum_scenes(collect_scene, &scenes);
+
+	struct flip_search search = {.source = source, .best_score = -1};
+	for (size_t i = 0; i < scenes.num; i++) {
+		obs_source_t *scene_source = scenes.array[i];
+		obs_scene_t *scene = obs_group_or_scene_from_source(scene_source);
+		if (scene) {
+			search.scene_score = (obs_source_active(scene_source) ? 4 : 0) +
+					     (obs_source_showing(scene_source) ? 2 : 0);
+			obs_scene_enum_items(scene, check_item, &search);
+		}
+		obs_source_release(scene_source);
+	}
+	da_free(scenes);
+	*flip_h = search.flip_h;
+	*flip_v = search.flip_v;
+}
+
+/* 장면에서 뒤집어 쓰면 폰이 워터마크를 미리 뒤집어 그려, 방송 화면에서는 바로 읽히게 한다 (프로토콜 "view"). */
+static void maybe_send_view(struct phonecam_source *ctx)
+{
+	uint64_t now = os_gettime_ns();
+	if (now - ctx->last_view_ns < VIEW_INTERVAL_NS)
+		return;
+	ctx->last_view_ns = now;
+
+	bool flip_h, flip_v;
+	find_scene_flip(ctx->source, &flip_h, &flip_v);
+	int flip = (flip_h ? 1 : 0) | (flip_v ? 2 : 0);
+	if (flip == ctx->sent_flip)
+		return;
+	ctx->sent_flip = flip;
+
+	obs_data_t *msg = obs_data_create();
+	obs_data_set_string(msg, "type", "view");
+	obs_data_set_bool(msg, "flip_h", flip_h);
+	obs_data_set_bool(msg, "flip_v", flip_v);
+	send_control(ctx, msg);
+	obs_data_release(msg);
+}
+
 /* ------------------------------------------------------------------------- */
 /* 영상 출력 */
 
@@ -1044,6 +1133,8 @@ static void reset_session_state(struct phonecam_source *ctx)
 	ctx->clock_valid = false;
 	ctx->last_ping_ns = 0;
 	ctx->ping_sent_us = 0;
+	ctx->last_view_ns = 0;
+	ctx->sent_flip = -1;
 	ctx->window_start_ns = 0;
 	ctx->window_frames = 0;
 	ctx->window_latency_us = 0;
@@ -1296,6 +1387,7 @@ static void receive_stream(struct phonecam_source *ctx, pcam_socket_t sock, cons
 			}
 		}
 		maybe_send_ping(ctx);
+		maybe_send_view(ctx);
 	}
 
 	pcam_decoder_destroy(decoder);
