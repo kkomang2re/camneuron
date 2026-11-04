@@ -237,6 +237,7 @@ void pcam_stats_from_json(struct pcam_stats *stats, obs_data_t *msg)
 	stats->dropped = (int)obs_data_get_int(msg, "dropped");
 	stats->encode_ms = obs_data_get_double(msg, "encode_ms");
 	stats->battery = (int)obs_data_get_int(msg, "battery");
+	stats->charging = obs_data_has_user_value(msg, "charging") ? (obs_data_get_bool(msg, "charging") ? 1 : 0) : -1;
 	stats->temp = obs_data_get_double(msg, "temp");
 	stats->thermal = (int)obs_data_get_int(msg, "thermal");
 }

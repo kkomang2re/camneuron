@@ -78,6 +78,7 @@ struct pcam_stats {
 	int dropped;
 	double encode_ms;
 	int battery;
+	int charging; /* 1 = 충전 중, 0 = 아님, -1 = 모름 (폰 앱 0.2.5 이전) */
 	double temp;
 	int thermal;
 };

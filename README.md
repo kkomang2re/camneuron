@@ -7,8 +7,8 @@
 
 | | 파일 | |
 |---|---|---|
-| **폰 앱 체험판** (Android 8.0 이상, 2027-01-31까지 프로) | [CamNeuron-0.2.4-beta.apk](https://github.com/kkomang2re/camneuron/releases/download/app-v0.2.4-beta/CamNeuron-0.2.4-beta.apk) | [설치 방법](https://kkomang2re.github.io/camneuron/beta.html) |
-| **PC 플러그인** (Windows, OBS Studio 33) | [CamNeuron-PC-Plugin-0.2.4-Setup.exe](https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.4/CamNeuron-PC-Plugin-0.2.4-Setup.exe) | [zip](https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.4/CamNeuron-PC-Plugin-0.2.4-windows-x64.zip) |
+| **폰 앱 체험판** (Android 8.0 이상, 2027-01-31까지 프로) | [CamNeuron-0.2.5-beta.apk](https://github.com/kkomang2re/camneuron/releases/download/app-v0.2.5-beta/CamNeuron-0.2.5-beta.apk) | [설치 방법](https://kkomang2re.github.io/camneuron/beta.html) |
+| **PC 플러그인** (Windows, OBS Studio 33) | [CamNeuron-PC-Plugin-0.2.5-Setup.exe](https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.5/CamNeuron-PC-Plugin-0.2.5-Setup.exe) | [zip](https://github.com/kkomang2re/camneuron/releases/download/plugin-v0.2.5/CamNeuron-PC-Plugin-0.2.5-windows-x64.zip) |
 
 폰에서 APK를 받아 설치할 때 "출처를 알 수 없는 앱"과 Play 프로텍트 안내가 나오면 [설치 방법](https://kkomang2re.github.io/camneuron/beta.html)을 보세요.
 

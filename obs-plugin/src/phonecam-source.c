@@ -62,6 +62,7 @@
 #define VIEW_INTERVAL_NS 1000000000ULL
 #define OBS_STATE_INTERVAL_NS 1000000000ULL
 #define LOST_AFTER_NS 3000000000ULL
+#define LOW_BATTERY_PERCENT 20
 #define STATS_INTERVAL_NS 1000000000ULL
 #define MAX_LATENCY_US 5000000LL
 /* 소리를 낼 시각이 지금보다 이만큼 넘게 지났으면 버린다 (OBS가 모든 소리의 버퍼를 늘리지 않게). */
@@ -226,6 +227,12 @@ static void settings_copy(struct connection_settings *dst, const struct connecti
 static bool str_equal(const char *a, const char *b)
 {
 	return strcmp(a ? a : "", b ? b : "") == 0;
+}
+
+/* 충전하지 않는 채로 폰 배터리가 LOW_BATTERY_PERCENT 이하 (폰 앱이 화면에 알리는 값과 같다). 충전 여부를 모르면(앱 0.2.5 이전) 알리지 않는다. */
+static bool battery_low(const struct pcam_stats *stats)
+{
+	return stats->valid && stats->charging == 0 && stats->battery >= 0 && stats->battery <= LOW_BATTERY_PERCENT;
 }
 
 static bool settings_equal(const struct connection_settings *a, const struct connection_settings *b)
@@ -971,8 +978,13 @@ static void handle_control(struct phonecam_source *ctx, const uint8_t *data, siz
 		queue_settings_sync(ctx);
 	} else if (strcmp(type, "stats") == 0) {
 		pthread_mutex_lock(&ctx->mutex);
+		bool was_low = battery_low(&ctx->stats);
 		pcam_stats_from_json(&ctx->stats, msg);
+		bool low = battery_low(&ctx->stats);
+		int battery = ctx->stats.battery;
 		pthread_mutex_unlock(&ctx->mutex);
+		if (low && !was_low)
+			blog(LOG_WARNING, "[phonecam] phone battery is low (%d%%, not charging)", battery);
 	} else if (strcmp(type, "pong") == 0) {
 		handle_pong(ctx, msg);
 	} else if (strcmp(type, "overlays") == 0) {
@@ -1981,6 +1993,10 @@ static void add_status(struct phonecam_source *ctx, obs_properties_t *props)
 		}
 		if (ctx->net_level > 0) {
 			dstr_catf(&text, T_("Status.Net"), ctx->net_level, ctx->send_mbps);
+			dstr_cat(&text, "\n");
+		}
+		if (battery_low(&ctx->stats)) {
+			dstr_catf(&text, T_("Status.BatteryLow"), ctx->stats.battery);
 			dstr_cat(&text, "\n");
 		}
 		if (ctx->latency_ms >= 0)
