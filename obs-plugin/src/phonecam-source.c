@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <util/darray.h>
 #include <util/dstr.h>
 #include <util/platform.h>
@@ -17,8 +18,11 @@
 #include "discovery.h"
 #include "net.h"
 #include "overlay.h"
+#include "monitor.h"
 #include "pairing.h"
 #include "protocol.h"
+#include "remote.h"
+#include "writer.h"
 
 #define S_CONNECTION "connection"
 #define S_HOST "host"
@@ -37,6 +41,9 @@
 #define S_FIND "find_phone"
 #define S_FOUND "found_phone"
 #define S_PAIR_CODE "pair_code"
+#define S_PHONE_SCENE "phone_scene"
+#define S_MONITOR_TRACK "monitor_track"
+#define S_MONITOR_REMOVE_MICS "monitor_remove_mics"
 
 /* 소스의 필터 목록에 보이는 이름. 0.2.0까지는 LEGACY 이름이었으므로 그 이름의 필터를 찾으면 새 이름으로 바꾼다. */
 #define OVERLAY_FILTER_NAME "CamNeuron chat/alert overlay"
@@ -52,6 +59,7 @@
 #define MAX_AUTH_MESSAGE_BYTES (64 * 1024)
 #define PING_INTERVAL_NS 2000000000ULL
 #define VIEW_INTERVAL_NS 1000000000ULL
+#define OBS_STATE_INTERVAL_NS 1000000000ULL
 #define STATS_INTERVAL_NS 1000000000ULL
 #define MAX_LATENCY_US 5000000LL
 /* 소리를 낼 시각이 지금보다 이만큼 넘게 지났으면 버린다 (OBS가 모든 소리의 버퍼를 늘리지 않게). */
@@ -103,6 +111,10 @@ struct phonecam_source {
 	long generation; /* 접속 설정이 바뀔 때마다 증가. 수신 스레드는 이를 보고 다시 접속한다. */
 	pcam_socket_t sock;
 	bool sock_ready; /* 승인을 마쳐 다른 스레드도 제어 메시지를 보내도 됨 (승인 메시지와 섞이지 않게) */
+	struct pcam_writer *writer;   /* 승인 뒤 폰으로 보내는 것은 모두 이 스레드가 보낸다 */
+	struct pcam_monitor *monitor; /* 폰이 켠 방송 모니터 (protocol 9.3) */
+	char phone_scene_setting[256]; /* 속성의 "폰 장면" (비면 자동) */
+	int monitor_track;             /* 모니터로 보낼 오디오 트랙 1~6 */
 	enum auth_status auth;
 	int auth_attempts_left;
 	int auth_retry_s;
@@ -158,6 +170,16 @@ struct phonecam_source {
 	long long ping_id;
 	uint64_t last_view_ns;
 	int sent_flip; /* 폰에 알린 장면 뒤집기 (1 좌우, 2 상하). -1이면 아직 안 알림 */
+	uint64_t last_obs_refresh_ns;
+	long sent_obs_version; /* 폰에 알린 OBS 상태 번호. -1이면 아직 안 알림 */
+	bool sent_phone_mode;
+	char sent_phone_scene[256];
+	bool obs_tick; /* 1초가 지나 방송 시간을 다시 알릴 때 */
+
+	/* 폰에서 방송 진행 (UI 스레드에서만 쓴다). phone_mode는 수신 스레드가 읽는 사본. */
+	struct pcam_remote_mode remote_mode;
+	volatile bool phone_mode;
+	char remove_mics_result[128]; /* 속성의 "트랙에서 마이크 빼기" 결과 */
 	bool clock_valid;
 	int64_t clock_offset_us;
 	int64_t best_rtt_us;
@@ -230,13 +252,21 @@ static bool send_json(pcam_socket_t sock, obs_data_t *msg)
 	return pcam_send_all(sock, header, sizeof(header)) && pcam_send_all(sock, json, len);
 }
 
-/* mutex를 잡은 상태에서 부른다. 보내지 못하면 소켓을 닫아 수신 스레드가 다시 접속하게 한다. */
+/* mutex를 잡은 상태에서 부른다. 보내기 스레드에 넣기만 하므로 Wi-Fi가 느려도 부른 스레드(OBS UI 등)는 기다리지 않는다. */
 static void send_control_locked(struct phonecam_source *ctx, obs_data_t *msg)
 {
-	if (ctx->sock == PCAM_INVALID_SOCKET || !ctx->sock_ready)
+	if (ctx->sock == PCAM_INVALID_SOCKET || !ctx->sock_ready || !ctx->writer)
 		return;
-	if (!send_json(ctx->sock, msg))
-		pcam_shutdown(ctx->sock);
+	const char *json = obs_data_get_json(msg);
+	pcam_writer_control(ctx->writer, json, strlen(json));
+}
+
+static void send_raw_control(struct phonecam_source *ctx, const char *json)
+{
+	pthread_mutex_lock(&ctx->mutex);
+	if (ctx->sock_ready && ctx->writer)
+		pcam_writer_control(ctx->writer, json, strlen(json));
+	pthread_mutex_unlock(&ctx->mutex);
 }
 
 static void send_control(struct phonecam_source *ctx, obs_data_t *msg)
@@ -355,6 +385,10 @@ static void phonecam_update(void *data, obs_data_t *settings)
 	snprintf(ctx->pair_code, sizeof(ctx->pair_code), "%s", code);
 	ctx->wanted = wanted;
 	ctx->overlay_wanted = overlay_wanted;
+	snprintf(ctx->phone_scene_setting, sizeof(ctx->phone_scene_setting), "%s",
+		 obs_data_get_string(settings, S_PHONE_SCENE));
+	int track = (int)obs_data_get_int(settings, S_MONITOR_TRACK);
+	ctx->monitor_track = track >= 1 && track <= 6 ? track : 6;
 	snprintf(ctx->device_id, sizeof(ctx->device_id), "%s", obs_data_get_string(settings, S_DEVICE_ID));
 	if (reconnect) {
 		settings_free(&ctx->settings);
@@ -758,6 +792,138 @@ static void handle_pong(struct phonecam_source *ctx, obs_data_t *msg)
 	}
 }
 
+/* ------------------------------------------------------------------------- */
+/* 폰에서 방송 진행 (protocol 9장) */
+
+/* 모니터 인코더 스레드에서 불린다. 보내기 스레드 줄에 넣기만 한다. */
+static void monitor_packet_to_phone(void *param, uint8_t stream_id, uint8_t flags, int64_t pts_us,
+				    const uint8_t *data, size_t size)
+{
+	struct phonecam_source *ctx = param;
+	pthread_mutex_lock(&ctx->mutex);
+	if (ctx->writer)
+		pcam_writer_media(ctx->writer, stream_id, flags, pts_us, data, size);
+	pthread_mutex_unlock(&ctx->mutex);
+}
+
+static void handle_monitor(struct phonecam_source *ctx, obs_data_t *msg)
+{
+	bool video = obs_data_get_bool(msg, "video");
+	bool audio = obs_data_get_bool(msg, "audio");
+
+	pthread_mutex_lock(&ctx->mutex);
+	struct pcam_monitor *old = ctx->monitor;
+	ctx->monitor = NULL;
+	int track = ctx->monitor_track;
+	pthread_mutex_unlock(&ctx->mutex);
+	pcam_monitor_stop(old);
+
+	obs_data_t *reply = obs_data_create();
+	obs_data_set_string(reply, "type", "monitor_state");
+	struct pcam_monitor_info info = {0};
+	char error[128] = {0};
+	struct pcam_monitor *monitor = NULL;
+	if (video) {
+		monitor = pcam_monitor_start(audio ? track : 0, monitor_packet_to_phone, ctx, &info, error, sizeof(error));
+		if (!monitor)
+			blog(LOG_WARNING, "[phonecam] monitor: %s", error);
+	}
+	obs_data_set_bool(reply, "video", monitor != NULL);
+	obs_data_set_bool(reply, "audio", monitor && info.audio);
+	if (monitor) {
+		obs_data_set_int(reply, "width", info.width);
+		obs_data_set_int(reply, "height", info.height);
+		obs_data_set_int(reply, "fps", info.fps);
+		obs_data_set_int(reply, "track", track);
+		obs_data_set_bool(reply, "mic_on_track", info.audio && pcam_remote_mics_on_track(track));
+	}
+	if (error[0])
+		obs_data_set_string(reply, "error", error);
+
+	pthread_mutex_lock(&ctx->mutex);
+	if (ctx->sock_ready && monitor) {
+		ctx->monitor = monitor;
+		monitor = NULL;
+	}
+	send_control_locked(ctx, reply);
+	pthread_mutex_unlock(&ctx->mutex);
+	pcam_monitor_stop(monitor); /* 그사이 연결이 끊겼으면 */
+	obs_data_release(reply);
+}
+
+struct remote_command {
+	obs_weak_source_t *weak;
+	obs_data_t *cmd;
+};
+
+/* obs-frontend-api는 UI 스레드에서 부른다. */
+static void remote_command_task(void *param)
+{
+	struct remote_command *task = param;
+	obs_source_t *source = obs_weak_source_get_source(task->weak);
+	if (source) {
+		struct phonecam_source *ctx = obs_obj_get_data(source);
+		char setting[sizeof(ctx->phone_scene_setting)];
+		pthread_mutex_lock(&ctx->mutex);
+		snprintf(setting, sizeof(setting), "%s", ctx->phone_scene_setting);
+		pthread_mutex_unlock(&ctx->mutex);
+		pcam_remote_execute(source, &ctx->remote_mode, setting, task->cmd);
+		os_atomic_set_bool(&ctx->phone_mode, ctx->remote_mode.phone);
+		obs_source_release(source);
+	}
+	obs_weak_source_release(task->weak);
+	obs_data_release(task->cmd);
+	bfree(task);
+}
+
+static void handle_remote_command(struct phonecam_source *ctx, obs_data_t *msg)
+{
+	struct remote_command *task = bzalloc(sizeof(*task));
+	task->weak = obs_source_get_weak_source(ctx->source);
+	task->cmd = msg;
+	obs_data_addref(msg);
+	obs_queue_task(OBS_TASK_UI, remote_command_task, task, false);
+}
+
+/* 연결 중에는 1초마다 OBS 상태를 모으게 하고, 바뀌었거나 방송·녹화 중이면(시간 표시) 폰에 알린다. */
+static void maybe_send_obs_state(struct phonecam_source *ctx)
+{
+	uint64_t now = os_gettime_ns();
+	bool tick = now - ctx->last_obs_refresh_ns >= OBS_STATE_INTERVAL_NS;
+	if (tick) {
+		ctx->last_obs_refresh_ns = now;
+		pcam_remote_request_refresh();
+		ctx->obs_tick = true;
+	}
+	long version = pcam_remote_version();
+	if (version == 0) /* 아직 한 번도 모으지 않음 */
+		return;
+	bool phone_mode = os_atomic_load_bool(&ctx->phone_mode);
+	bool due = version != ctx->sent_obs_version || phone_mode != ctx->sent_phone_mode ||
+		   (ctx->obs_tick && pcam_remote_live());
+	if (!due && !tick)
+		return;
+
+	/* 폰 장면은 장면을 고치거나 소스 크기를 알게 되면 바뀔 수 있어 1초마다 다시 본다. */
+	char setting[sizeof(ctx->phone_scene_setting)];
+	pthread_mutex_lock(&ctx->mutex);
+	snprintf(setting, sizeof(setting), "%s", ctx->phone_scene_setting);
+	pthread_mutex_unlock(&ctx->mutex);
+	char *phone_scene = pcam_remote_phone_scene(ctx->source, setting);
+	if (!due && strcmp(phone_scene, ctx->sent_phone_scene) == 0) {
+		bfree(phone_scene);
+		return;
+	}
+	ctx->obs_tick = false;
+	ctx->sent_obs_version = version;
+	ctx->sent_phone_mode = phone_mode;
+	snprintf(ctx->sent_phone_scene, sizeof(ctx->sent_phone_scene), "%s", phone_scene);
+	char *json = pcam_remote_state_json(ctx->source, phone_mode, phone_scene);
+	send_raw_control(ctx, json);
+	bfree(json);
+	bfree(phone_scene);
+}
+
 static void handle_control(struct phonecam_source *ctx, const uint8_t *data, size_t size)
 {
 	char *json = bstrdup_n((const char *)data, size);
@@ -785,6 +951,10 @@ static void handle_control(struct phonecam_source *ctx, const uint8_t *data, siz
 		handle_overlays(ctx, msg);
 	} else if (strcmp(type, "device") == 0) {
 		handle_device(ctx, msg);
+	} else if (strcmp(type, "monitor") == 0) {
+		handle_monitor(ctx, msg);
+	} else if (strcmp(type, "obs_cmd") == 0) {
+		handle_remote_command(ctx, msg);
 	}
 	obs_data_release(msg);
 }
@@ -1135,6 +1305,10 @@ static void reset_session_state(struct phonecam_source *ctx)
 	ctx->ping_sent_us = 0;
 	ctx->last_view_ns = 0;
 	ctx->sent_flip = -1;
+	ctx->last_obs_refresh_ns = 0;
+	ctx->sent_obs_version = -1;
+	ctx->sent_phone_scene[0] = 0;
+	ctx->obs_tick = false;
 	ctx->window_start_ns = 0;
 	ctx->window_frames = 0;
 	ctx->window_latency_us = 0;
@@ -1311,7 +1485,11 @@ static void receive_stream(struct phonecam_source *ctx, pcam_socket_t sock, cons
 	pcam_hello_encode(&settings->hello, hello_buf);
 	if (!pcam_send_all(sock, hello_buf, sizeof(hello_buf)) || !authenticate(ctx, sock))
 		return;
+	struct pcam_writer *writer = pcam_writer_start(sock);
+	if (!writer)
+		return;
 	pthread_mutex_lock(&ctx->mutex);
+	ctx->writer = writer;
 	ctx->sock_ready = true;
 	pthread_mutex_unlock(&ctx->mutex);
 
@@ -1388,6 +1566,7 @@ static void receive_stream(struct phonecam_source *ctx, pcam_socket_t sock, cons
 		}
 		maybe_send_ping(ctx);
 		maybe_send_view(ctx);
+		maybe_send_obs_state(ctx);
 	}
 
 	pcam_decoder_destroy(decoder);
@@ -1434,6 +1613,20 @@ static bool run_connection(struct phonecam_source *ctx, const struct connection_
 
 	if (current)
 		receive_stream(ctx, sock, settings);
+
+	/* 모니터 인코더가 더 넣지 않게 먼저 멈추고, 그다음 보내기 스레드를 멈춘다. */
+	pthread_mutex_lock(&ctx->mutex);
+	struct pcam_monitor *monitor = ctx->monitor;
+	ctx->monitor = NULL;
+	pthread_mutex_unlock(&ctx->mutex);
+	pcam_monitor_stop(monitor);
+
+	pthread_mutex_lock(&ctx->mutex);
+	struct pcam_writer *writer = ctx->writer;
+	ctx->writer = NULL;
+	ctx->sock_ready = false;
+	pthread_mutex_unlock(&ctx->mutex);
+	pcam_writer_stop(writer);
 
 	pthread_mutex_lock(&ctx->mutex);
 	ctx->sock = PCAM_INVALID_SOCKET;
@@ -1538,6 +1731,7 @@ static void phonecam_destroy(void *data)
 		pthread_join(ctx->find_thread, NULL);
 
 	settings_free(&ctx->settings);
+	pcam_remote_mode_free(&ctx->remote_mode);
 	os_event_destroy(ctx->wake);
 	pthread_mutex_destroy(&ctx->mutex);
 	bfree(ctx->buffer);
@@ -1594,6 +1788,8 @@ static void phonecam_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, S_MIC, true);
 	obs_data_set_default_int(settings, S_BEAUTY_SMOOTH, 0);
 	obs_data_set_default_int(settings, S_BEAUTY_BRIGHT, 0);
+	obs_data_set_default_string(settings, S_PHONE_SCENE, "");
+	obs_data_set_default_int(settings, S_MONITOR_TRACK, 6);
 
 	obs_data_set_default_string(settings, S_CHAT_URL, "");
 	obs_data_set_default_string(settings, S_ALERT_URL, "");
@@ -1912,6 +2108,46 @@ static obs_properties_t *audio_group(void)
 	return props;
 }
 
+static bool remove_mics_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+	UNUSED_PARAMETER(props);
+	UNUSED_PARAMETER(property);
+	struct phonecam_source *ctx = data;
+	obs_data_t *settings = obs_source_get_settings(ctx->source);
+	int track = (int)obs_data_get_int(settings, S_MONITOR_TRACK);
+	obs_data_release(settings);
+	int removed = pcam_remote_remove_mics_from_track(track);
+	snprintf(ctx->remove_mics_result, sizeof(ctx->remove_mics_result), T_("Remote.MicsRemoved"), removed, track);
+	return true; /* 결과 문구를 보이게 속성을 다시 그린다 */
+}
+
+/* 폰에서 방송 진행: 폰 장면, 모니터 소리 트랙 */
+static obs_properties_t *remote_group(struct phonecam_source *ctx)
+{
+	obs_properties_t *props = obs_properties_create();
+	obs_properties_add_text(props, "remote_help", T_("Remote.Help"), OBS_TEXT_INFO);
+
+	obs_property_t *p = obs_properties_add_list(props, S_PHONE_SCENE, T_("Remote.PhoneScene"),
+						    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p, T_("Remote.PhoneScene.Auto"), "");
+	char **names = obs_frontend_get_scene_names();
+	for (char **name = names; name && *name; name++)
+		obs_property_list_add_string(p, *name, *name);
+	bfree(names);
+
+	p = obs_properties_add_list(props, S_MONITOR_TRACK, T_("Remote.MonitorTrack"), OBS_COMBO_TYPE_LIST,
+				    OBS_COMBO_FORMAT_INT);
+	for (int track = 1; track <= 6; track++) {
+		char label[64];
+		snprintf(label, sizeof(label), T_("Remote.Track"), track);
+		obs_property_list_add_int(p, label, track);
+	}
+	obs_properties_add_button2(props, S_MONITOR_REMOVE_MICS, T_("Remote.RemoveMics"), remove_mics_clicked, ctx);
+	if (ctx->remove_mics_result[0])
+		obs_properties_add_text(props, "remote_result", ctx->remove_mics_result, OBS_TEXT_INFO);
+	return props;
+}
+
 static obs_properties_t *phonecam_properties(void *data)
 {
 	struct phonecam_source *ctx = data;
@@ -1931,6 +2167,7 @@ static obs_properties_t *phonecam_properties(void *data)
 	obs_properties_add_group(props, "group_beauty", T_("Group.Beauty"), OBS_GROUP_NORMAL, beauty_group());
 	obs_properties_add_group(props, "group_quality", T_("Group.Quality"), OBS_GROUP_NORMAL, quality_group(ctx));
 	obs_properties_add_group(props, "group_audio", T_("Group.Audio"), OBS_GROUP_NORMAL, audio_group());
+	obs_properties_add_group(props, "group_remote", T_("Group.Remote"), OBS_GROUP_NORMAL, remote_group(ctx));
 	obs_properties_add_group(props, "group_overlay", T_("Group.Overlay"), OBS_GROUP_NORMAL, overlay_group());
 	obs_properties_add_group(props, "group_connection", T_("Group.Connection"), OBS_GROUP_NORMAL,
 				 connection_group(ctx));

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(obs-phonecam VERSION 0.2.2 LANGUAGES C RC)
+project(obs-phonecam VERSION 0.2.3 LANGUAGES C RC)
 
 if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "지금은 Windows x64만 지원합니다.")
@@ -20,6 +20,8 @@ endforeach()
 include(cmake/ImportLib.cmake)
 pcam_import_lib_from_dll(pcam_obs "${OBS_INSTALL_DIR}/bin/64bit/obs.dll")
 pcam_import_lib_from_dll(pcam_w32_pthreads "${OBS_INSTALL_DIR}/bin/64bit/w32-pthreads.dll")
+# 장면 목록·장면 바꾸기·방송 상태 (폰에서 방송 진행)
+pcam_import_lib_from_dll(pcam_obs_frontend "${OBS_INSTALL_DIR}/bin/64bit/obs-frontend-api.dll")
 
 # libobs의 obs-config.h가 빌드 때 생성되는 obsconfig.h를 include한다. 플러그인에 필요한 값은 없다.
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/obsconfig.h"
@@ -34,6 +36,9 @@ target_sources(
   PRIVATE src/plugin-main.c
           src/phonecam-source.c
           src/control.c
+          src/writer.c
+          src/remote.c
+          src/monitor.c
           src/overlay.c
           src/decoder.c
           src/audio.c
@@ -51,6 +56,7 @@ target_compile_options(obs-phonecam PRIVATE $<$<COMPILE_LANGUAGE:C>:/utf-8 /W3>)
 target_include_directories(
   obs-phonecam
   PRIVATE "${OBS_SOURCE_DIR}/libobs"
+          "${OBS_SOURCE_DIR}/frontend/api"
           "${OBS_SOURCE_DIR}/deps/w32-pthreads"
           "${CMAKE_CURRENT_BINARY_DIR}/generated"
           "${OBS_DEPS_DIR}/include")
@@ -58,6 +64,7 @@ target_include_directories(
 target_link_libraries(
   obs-phonecam
   PRIVATE pcam_obs
+          pcam_obs_frontend
           pcam_w32_pthreads
           "${OBS_DEPS_DIR}/lib/avcodec.lib"
           "${OBS_DEPS_DIR}/lib/avutil.lib"

@@ -266,3 +266,57 @@ PC(OBS 플러그인)의 동작:
 - 주소가 비어 있으면 찾아서 전에 연결한 폰(ID)에, 없으면 이 PC를 승인한(토큰이 있는) 폰, 그다음 다른 PC와 연결 중이 아닌 첫 폰 순으로
   접속하고 주소와 ID를 설정에 적습니다.
 - 저장된 주소로 3번 연달아 접속하지 못하면 같은 ID의 폰을 찾고, 다른 주소에 있으면 그 주소로 바꿉니다 (ID를 모르면 폰이 하나만 있을 때만).
+
+## 9. 방송 진행: OBS 원격 조작과 방송 모니터 (선택, 플러그인 0.2.3·앱 0.2.3부터)
+
+PC 앞이 아닌 곳에서 폰으로 방송을 진행하기 위한 기능입니다. 모두 선택 사항이라 예전 앱·플러그인은 모르는 메시지와 패킷을 무시합니다.
+폰이 `obs` 메시지를 받지 못하면 플러그인이 이 기능을 지원하지 않는 것으로 봅니다.
+
+### 9.1 OBS 상태 (PC → 폰)
+연결 직후, 바뀔 때, 방송·녹화 중에는 1초마다 보냅니다.
+```json
+{"type":"obs","scenes":["시작 화면","PC 화면","폰캠"],"scene":"PC 화면","studio":false,
+ "streaming":true,"stream_s":1234,"dropped":12,"total":74000,"recording":false,"record_s":0,
+ "mics":[{"name":"마이크/Aux","muted":false},{"name":"캠뉴런 (Android 폰 카메라)","muted":false,"phone":true}],
+ "mode":"pc","phone_scene":"폰캠"}
+```
+| 키 | 값 |
+|---|---|
+| `scenes`, `scene` | 장면 목록(OBS 순서)과 지금 방송 중인 장면. `studio`는 스튜디오 모드 |
+| `streaming`, `stream_s`, `dropped`, `total` | 방송 중인지, 방송 시간(초), 방송 출력에서 버린 프레임 수와 전체 프레임 수 |
+| `recording`, `record_s` | 녹화 중인지, 녹화 시간(초) |
+| `mics` | 마이크 입력(전역 마이크/보조 장치와 장면 안의 오디오 입력 캡처)과 이 캠뉴런 소스(`phone`). 소리 끔 여부 |
+| `mode` | `phone`: 폰으로 전환한 상태 (아래 `mode` 명령), `pc`: 아님 |
+| `phone_scene` | `mode` `phone`일 때 바꿀 장면 (OBS 속성에서 정하거나, 비우면 이 소스가 있는 첫 장면) |
+
+### 9.2 원격 조작 (폰 → PC)
+```json
+{"type":"obs_cmd","cmd":"scene","name":"폰캠"}
+{"type":"obs_cmd","cmd":"mute","name":"마이크/Aux","muted":true}
+{"type":"obs_cmd","cmd":"mode","mode":"phone"}
+{"type":"obs_cmd","cmd":"stream","on":false}
+{"type":"obs_cmd","cmd":"record","on":true}
+```
+- `mode` `phone`: 지금 장면과 마이크 상태를 기억하고 `phone_scene`으로 바꾼 뒤, 이 소스를 뺀 마이크를 모두 끄고 이 소스의 소리를 켭니다.
+  `pc`: 기억한 장면과 마이크 상태로 되돌립니다.
+- 결과는 다음 `obs` 메시지로 확인합니다.
+
+### 9.3 방송 모니터 (OBS 송출 화면과 소리 → 폰)
+폰이 켜거나 끕니다.
+```json
+{"type":"monitor","video":true,"audio":true}
+```
+PC는 상태로 답합니다. `error`가 있으면 켜지 못한 이유입니다.
+```json
+{"type":"monitor_state","video":true,"audio":true,"width":960,"height":540,"fps":30,"track":6,"mic_on_track":true}
+```
+`track`은 보내는 OBS 오디오 트랙(1~6, OBS 속성에서 고름), `mic_on_track`은 그 트랙에 마이크가 들어 있어 폰에서 내 목소리가 늦게 들린다는 뜻입니다.
+
+모니터 패킷은 3장과 같은 머리말을 쓰고 PC → 폰으로만 갑니다.
+
+| stream_id | 내용 |
+|---|---|
+| 3 | 영상, H.264 Annex-B. `CONFIG`(SPS·PPS)를 키프레임마다 앞에 다시 보냄. 키프레임은 1초마다 |
+| 4 | 소리, Opus 48 kHz. `CONFIG`는 3.1과 같은 12바이트 + OpusHead, 키프레임과 같은 주기로 다시 보냄 |
+
+PC는 모니터 패킷이 약 0.5초 분량 넘게 밀리면 쌓인 모니터 패킷을 버리고 다음 키프레임부터 다시 보냅니다. 제어 메시지는 버리지 않고 먼저 보냅니다.
